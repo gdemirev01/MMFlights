@@ -31,13 +31,18 @@ import mmflights.providers.json
  *  - Messages can only be sent within 24 hours of the recipient's last message to the Page.
  *    Outside that window Meta rejects the send; the error below says so.
  */
+private val log = org.slf4j.LoggerFactory.getLogger("mmflights")
+
 class MessengerNotifier(private val client: HttpClient, private val s: NotifierSettings.Messenger) : Notifier {
     override val name = "messenger"
     private val graph = "https://graph.facebook.com/${s.graphVersion}"
 
     override suspend fun send(text: String): Either<String, Unit> {
-        if (s.recipients.isEmpty()) return ("no recipients yet – run the workflow with 'messenger-ids' " +
-            "and save the IDs as MESSENGER_RECIPIENT_IDS").left()
+        if (s.recipients.isEmpty()) {
+            // Not an error: the Page may still be in setup while other channels deliver.
+            log.warn("messenger: no recipients yet – save their IDs as MESSENGER_RECIPIENT_IDS to enable it")
+            return Unit.right()
+        }
         val parts = Messages.chunk(text, 2_000)
         val failures = s.recipients.mapNotNull { id ->
             parts.firstNotNullOfOrNull { part -> sendOne(id, part).leftOrNull() }?.let { "recipient $id: $it" }

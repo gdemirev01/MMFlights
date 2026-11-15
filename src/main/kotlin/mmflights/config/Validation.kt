@@ -154,7 +154,13 @@ private fun RawProviders.validate(): Either<String, List<ProviderSettings>> = li
 
 /** Right(null) = notifier left unconfigured on purpose (all its values empty) → skipped. */
 private fun RawNotifier.toSettings(): Either<String, NotifierSettings?> = when (this) {
-    is RawNotifier.Telegram -> NotifierSettings.Telegram(botToken, chatId).right()
+    is RawNotifier.Telegram -> when {
+        botToken.isBlank() && chatId.isBlank() -> Either.Right(null)
+        botToken.isBlank() -> "telegram.botToken is empty".left()
+        chatId.isBlank() -> "telegram.chatId is empty".left()
+        !chatId.trim().matches(Regex("-?\\d+|@\\w+")) -> "telegram.chatId must be a number like -1001234567890".left()
+        else -> NotifierSettings.Telegram(botToken.trim(), chatId.trim()).right()
+    }
     is RawNotifier.Slack -> NotifierSettings.Slack(webhookUrl).right()
     is RawNotifier.Discord -> NotifierSettings.Discord(webhookUrl).right()
     is RawNotifier.Console -> NotifierSettings.Console.right()
