@@ -1,0 +1,4 @@
+{"search_metadata":{"google_flights_url":"https://www.google.com/travel/flights?ret"},
+ "best_flights":[
+  {"flights":[{"departure_airport":{"id":"STN","time":"2026-12-25 06:00"},"arrival_airport":{"id":"SOF","time":"2026-12-25 11:00"},"airline":"Ryanair","flight_number":"FR 2374"}],"total_duration":180,"price":195},
+  {"flights":[{"departure_airport":{"id":"STN","time":"2026-12-25 13:00"},"arrival_airport":{"id":"SOF","time":"2026-12-25 18:00"},"airline":"Ryanair","flight_number":"FR 2376"}],"total_duration":180,"price":210}]}

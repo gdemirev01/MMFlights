@@ -1,0 +1,57 @@
+# Live configuration (used by the scheduled GitHub Action and by `mmflights run`).
+# Secrets come from environment variables / repository secrets – never put them in this file.
+#   SERPAPI_KEY              – https://serpapi.com/manage-api-key
+#   MESSENGER_PAGE_TOKEN     – Page access token of your Facebook Page (see README)
+#   MESSENGER_RECIPIENT_IDS  – comma-separated PSIDs (run `mmflights messenger-ids`)
+
+currency: EUR
+# One route + one date pair = ~2 Google searches per check (outbound list + return flights).
+# 12h polling + the daily summary ≈ 6 searches/day ≈ 180/month. Raise to 24h on a small plan.
+pollInterval: 12h
+concurrency: 2
+dataDir: data
+
+providers:
+  serpapi:                    # Google Flights: all airlines incl. Wizz Air, Ryanair, low-cost
+    apiKey: "${SERPAPI_KEY}"
+    country: bg               # search the Bulgarian Google market
+    language: en
+    returnDetails: true       # also load the return flight of the cheapest option
+
+notifiers:
+  - type: messenger
+    # Skipped automatically until both secrets exist; results still go to the job log.
+    pageAccessToken: "${MESSENGER_PAGE_TOKEN:-}"
+    recipients: "${MESSENGER_RECIPIENT_IDS:-}"
+  - type: console             # also print to the job log
+  # Telegram works in group chats with no 24-hour limit – recommended as a backup:
+  # - type: telegram
+  #   botToken: "${TELEGRAM_BOT_TOKEN}"
+  #   chatId: "${TELEGRAM_CHAT_ID}"
+
+trackers:
+  - id: sofia-budapest-new-year
+    name: "Sofia ⇄ Budapest, New Year"
+    origins: [SOF]
+    destinations: [BUD]
+    departure: { from: 2026-12-30, to: 2026-12-30 }
+    return: { from: 2027-01-03, to: 2027-01-03 }
+    passengers:
+      adults: 4               # for children use e.g. adults: 2 and children: [10, 7] (ages)
+      children: []
+      infants: 0
+    cabin: economy
+    maxStops: 1               # direct is ~1.5h; allow one short connection
+    times:                    # "adequate flight time", applied to both directions
+      maxDuration: 5h         # door to door, including any layover
+      departAfter: "07:00"    # no dawn departures
+      arriveBefore: "23:30"   # arrive the same evening
+    # maxPrice: 800           # optional: only alert when the total for all 4 is at/under this
+    topN: 5
+    notify:
+      onChange: true
+      alertOn: any            # or "drops"
+      minChangeAmount: 10     # EUR, for the whole group
+      minChangePercent: 3
+      dailyAt: "09:00"
+      timezone: Europe/Sofia

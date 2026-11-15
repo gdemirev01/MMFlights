@@ -1,0 +1,72 @@
+# MMFlights configuration. Copy to config.yaml and edit.
+# Any ${VAR} is read from the environment, so secrets never have to be committed.
+
+currency: EUR          # default currency for all trackers
+pollInterval: 3h       # how often to re-check prices (change alerts)
+concurrency: 4         # parallel provider calls
+dataDir: data          # where price history is stored
+
+providers:
+  # Fake prices so you can try everything without API keys. Remove once real providers are set.
+  demo: true
+
+  # Google Flights (via SerpApi) – covers practically all airlines incl. low-cost carriers.
+  # serpapi:
+  #   apiKey: "${SERPAPI_KEY}"
+  #   country: bg          # optional market (affects prices/currency availability)
+  #   returnDetails: true  # one extra search per check to load the cheapest return flight
+
+  # Duffel – direct airline connections (300+ airlines, NDC). Use a live token for real prices.
+  # duffel:
+  #   token: "${DUFFEL_TOKEN}"
+
+notifiers:
+  - type: console
+  # Telegram group: create a bot with @BotFather, add it to the group, use the group's chat id.
+  # - type: telegram
+  #   botToken: "${TELEGRAM_BOT_TOKEN}"
+  #   chatId: "${TELEGRAM_CHAT_ID}"
+  # Facebook Messenger: one-to-one only, 24-hour window (see README).
+  # - type: messenger
+  #   pageAccessToken: "${MESSENGER_PAGE_TOKEN}"
+  #   recipients: "${MESSENGER_RECIPIENT_IDS}"   # comma-separated PSIDs
+  # - type: slack
+  #   webhookUrl: "${SLACK_WEBHOOK_URL}"
+  # - type: discord
+  #   webhookUrl: "${DISCORD_WEBHOOK_URL}"
+
+trackers:
+  - id: sofia-london-xmas
+    name: "Christmas in London"
+    origins: [SOF]
+    destinations: [LTN, STN, LGW, LHR]      # any of these airports
+    departure: { from: 2026-12-18, to: 2026-12-20 }
+    stay: { min: 7, max: 9 }                # nights; and/or a fixed window: return: { from: ..., to: ... }
+    passengers:
+      adults: 2
+      children: [8]                         # ages 2-17
+      infants: 0                            # under 2, on lap
+    cabin: economy                          # economy | premium_economy | business | first
+    maxStops: 1                             # omit for any
+    times:                                  # optional "adequate flight time" limits, both directions
+      maxDuration: 6h                       # including layovers
+      departAfter: "06:30"
+      arriveBefore: "23:59"
+    maxPrice: 600                           # only alert on deals at/under this total (optional)
+    maxQueries: 40                          # cap on date×route combinations per check
+    topN: 5                                 # how many alternatives to keep/show
+    notify:
+      onChange: true                        # alert when the cheapest price changes
+      alertOn: any                          # any | drops
+      minChangePercent: 2
+      minChangeAmount: 5
+      dailyAt: "09:00"                      # daily summary (remove to disable)
+      timezone: Europe/Sofia
+
+  - id: summer-one-way
+    origins: [SOF, PDV]
+    destinations: [BCN]
+    oneWay: true
+    departure: { from: 2027-07-01, to: 2027-07-05 }
+    passengers: { adults: 1 }
+    notify: { alertOn: drops, dailyAt: null }

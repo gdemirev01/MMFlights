@@ -1,0 +1,58 @@
+# Runs the tracker on GitHub's schedule – no server needed.
+# Add your secrets under Settings → Secrets and variables → Actions
+# (e.g. SERPAPI_KEY, MESSENGER_PAGE_TOKEN, MESSENGER_RECIPIENT_IDS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) and commit a config.yaml.
+name: flight-tracker
+
+on:
+  schedule:
+    - cron: "17 */12 * * *"  # every 12h: alert on price changes
+    - cron: "3 7 * * *"      # 07:03 UTC (09:03 Sofia): daily summary
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "check, summary or messenger-ids"
+        default: summary
+
+concurrency: flight-tracker
+
+jobs:
+  track:
+    if: hashFiles('config.yaml') != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Price history lives in data/ and is carried between runs through the Actions cache.
+      - uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: tracker-state-${{ github.run_id }}
+          restore-keys: tracker-state-
+
+      - run: ./gradlew installDist -q
+
+      - name: Run tracker
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          DUFFEL_TOKEN: ${{ secrets.DUFFEL_TOKEN }}
+          MESSENGER_PAGE_TOKEN: ${{ secrets.MESSENGER_PAGE_TOKEN }}
+          MESSENGER_RECIPIENT_IDS: ${{ secrets.MESSENGER_RECIPIENT_IDS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then CMD="${{ inputs.command }}";
+          elif [ "${{ github.event.schedule }}" = "3 7 * * *" ]; then CMD=summary;
+          else CMD=check; fi
+          build/install/mmflights/bin/mmflights -c config.yaml "$CMD"
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data
+          key: tracker-state-${{ github.run_id }}

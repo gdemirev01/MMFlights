@@ -1,0 +1,6 @@
+{"data":{"id":"orq_1","offers":[{"id":"off_1","total_amount":"412.30","total_currency":"EUR",
+ "owner":{"name":"Wizz Air","iata_code":"W6"},
+ "slices":[
+  {"segments":[{"origin":{"iata_code":"SOF"},"destination":{"iata_code":"LTN"},"departing_at":"2026-12-18T06:10:00","arriving_at":"2026-12-18T07:55:00","marketing_carrier":{"name":"Wizz Air","iata_code":"W6"},"marketing_carrier_flight_number":"4301"}]},
+  {"segments":[{"origin":{"iata_code":"LTN"},"destination":{"iata_code":"SOF"},"departing_at":"2026-12-25T09:00:00","arriving_at":"2026-12-25T14:30:00","marketing_carrier":{"name":"Wizz Air","iata_code":"W6"},"marketing_carrier_flight_number":"4302"}]}
+ ]}]}}
