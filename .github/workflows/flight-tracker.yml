@@ -1,6 +1,6 @@
 # Runs the tracker on GitHub's schedule – no server needed.
 # Add your secrets under Settings → Secrets and variables → Actions
-# (e.g. SERPAPI_KEY, MESSENGER_PAGE_TOKEN, MESSENGER_RECIPIENT_IDS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) and commit a config.yaml.
+# (e.g. SERPAPI_KEY, MESSENGER_PAGE_TOKEN, MESSENGER_RECIPIENT_IDS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID).
 name: flight-tracker
 
 on:
@@ -17,7 +17,6 @@ concurrency: flight-tracker
 
 jobs:
   track:
-    if: hashFiles('config.yaml') != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -45,10 +44,14 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_COMMAND: ${{ inputs.command }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then CMD="${{ inputs.command }}";
-          elif [ "${{ github.event.schedule }}" = "3 7 * * *" ]; then CMD=summary;
+          if [ "$EVENT" = "workflow_dispatch" ]; then CMD="$INPUT_COMMAND";
+          elif [ "$SCHEDULE" = "3 7 * * *" ]; then CMD=summary;
           else CMD=check; fi
+          case "$CMD" in check|summary|messenger-ids) ;; *) echo "Unknown command: $CMD"; exit 2;; esac
           build/install/mmflights/bin/mmflights -c config.yaml "$CMD"
 
       - uses: actions/cache/save@v4
