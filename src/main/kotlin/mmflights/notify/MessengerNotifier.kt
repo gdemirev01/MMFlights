@@ -36,6 +36,8 @@ class MessengerNotifier(private val client: HttpClient, private val s: NotifierS
     private val graph = "https://graph.facebook.com/${s.graphVersion}"
 
     override suspend fun send(text: String): Either<String, Unit> {
+        if (s.recipients.isEmpty()) return ("no recipients yet – run the workflow with 'messenger-ids' " +
+            "and save the IDs as MESSENGER_RECIPIENT_IDS").left()
         val parts = Messages.chunk(text, 2_000)
         val failures = s.recipients.mapNotNull { id ->
             parts.firstNotNullOfOrNull { part -> sendOne(id, part).leftOrNull() }?.let { "recipient $id: $it" }

@@ -162,7 +162,6 @@ private fun RawNotifier.toSettings(): Either<String, NotifierSettings?> = when (
     else if (pageAccessToken.isBlank()) "messenger.pageAccessToken is empty".left()
     else recipients.split(',', ';', ' ', '\n').map(String::trim).filter(String::isNotEmpty).let { ids ->
         when {
-            ids.isEmpty() -> "messenger.recipients is empty (run `mmflights messenger-ids` to find them)".left()
             ids.any { !it.all(Char::isDigit) } -> "messenger.recipients must be numeric page-scoped IDs".left()
             else -> NotifierSettings.Messenger(pageAccessToken, ids, graphVersion).right()
         }

@@ -85,6 +85,9 @@ class ConfigTest {
         assertEquals(listOf(mmflights.config.NotifierSettings.Console), cfg.notifiers)
         val half = parseConfig(java.io.File("config.yaml").readText(), mapOf("SERPAPI_KEY" to "k", "MESSENGER_RECIPIENT_IDS" to "1"))
         assertContains(half.leftOrNull()!!.joinToString(), "pageAccessToken")
+        // token but no IDs yet: still loads, so `messenger-ids` can run
+        val tokenOnly = parseConfig(java.io.File("config.yaml").readText(), mapOf("SERPAPI_KEY" to "k", "MESSENGER_PAGE_TOKEN" to "t"))
+        assertEquals(emptyList(), tokenOnly.getOrNull()!!.notifiers.filterIsInstance<mmflights.config.NotifierSettings.Messenger>().single().recipients)
     }
 
     @Test fun `the example config is valid`() {
