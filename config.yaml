@@ -20,8 +20,9 @@ providers:
 
 notifiers:
   - type: messenger
-    pageAccessToken: "${MESSENGER_PAGE_TOKEN}"
-    recipients: "${MESSENGER_RECIPIENT_IDS}"
+    # Skipped automatically until both secrets exist; results still go to the job log.
+    pageAccessToken: "${MESSENGER_PAGE_TOKEN:-}"
+    recipients: "${MESSENGER_RECIPIENT_IDS:-}"
   - type: console             # also print to the job log
   # Telegram works in group chats with no 24-hour limit – recommended as a backup:
   # - type: telegram

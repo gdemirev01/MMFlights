@@ -80,6 +80,13 @@ class ConfigTest {
         assertEquals("SOF→BUD 2026-12-30 ⇄ 2027-01-03", q.label)
     }
 
+    @Test fun `messenger is skipped until its secrets are set`() {
+        val cfg = parseConfig(java.io.File("config.yaml").readText(), mapOf("SERPAPI_KEY" to "k")).fold({ fail(it.joinToString()) }, { it })
+        assertEquals(listOf(mmflights.config.NotifierSettings.Console), cfg.notifiers)
+        val half = parseConfig(java.io.File("config.yaml").readText(), mapOf("SERPAPI_KEY" to "k", "MESSENGER_RECIPIENT_IDS" to "1"))
+        assertContains(half.leftOrNull()!!.joinToString(), "pageAccessToken")
+    }
+
     @Test fun `the example config is valid`() {
         assertTrue(parseConfig(java.io.File("config.example.yaml").readText(), emptyMap()).isRight())
     }

@@ -33,7 +33,7 @@ fun RawConfig.validate(): Either<Errors, AppConfig> = either {
         { check(concurrency in 1..32, "concurrency must be between 1 and 32").bind() },
         { currencyCode("currency", currency).bind() },
         { providers.validate().bind() },
-        { notifiers.map { it.toSettings().bind() } },
+        { notifiers.mapNotNull { it.toSettings().bind() } },
         { trackersOf(this@validate).bindNel() },
     ) { poll, _, _, provs, notifs, trackers ->
         AppConfig(poll, concurrency, dataDir, provs, notifs, trackers)
@@ -152,12 +152,15 @@ private fun RawProviders.validate(): Either<String, List<ProviderSettings>> = li
     ProviderSettings.Demo.takeIf { demo },
 ).let { if (it.isEmpty()) "configure at least one provider (duffel, serpapi or demo: true)".left() else it.right() }
 
-private fun RawNotifier.toSettings(): Either<String, NotifierSettings> = when (this) {
+/** Right(null) = notifier left unconfigured on purpose (all its values empty) → skipped. */
+private fun RawNotifier.toSettings(): Either<String, NotifierSettings?> = when (this) {
     is RawNotifier.Telegram -> NotifierSettings.Telegram(botToken, chatId).right()
     is RawNotifier.Slack -> NotifierSettings.Slack(webhookUrl).right()
     is RawNotifier.Discord -> NotifierSettings.Discord(webhookUrl).right()
     is RawNotifier.Console -> NotifierSettings.Console.right()
-    is RawNotifier.Messenger -> recipients.split(',', ';', ' ', '\n').map(String::trim).filter(String::isNotEmpty).let { ids ->
+    is RawNotifier.Messenger -> if (pageAccessToken.isBlank() && recipients.isBlank()) Either.Right(null)
+    else if (pageAccessToken.isBlank()) "messenger.pageAccessToken is empty".left()
+    else recipients.split(',', ';', ' ', '\n').map(String::trim).filter(String::isNotEmpty).let { ids ->
         when {
             ids.isEmpty() -> "messenger.recipients is empty (run `mmflights messenger-ids` to find them)".left()
             ids.any { !it.all(Char::isDigit) } -> "messenger.recipients must be numeric page-scoped IDs".left()
