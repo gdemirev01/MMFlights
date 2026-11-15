@@ -32,7 +32,7 @@ fun Tracker.expand(today: LocalDate): Expansion {
     val dates = trip.datePairs(today)
     val all = dates.flatMap { (dep, ret) ->
         routes.map { (o, d) ->
-            SearchQuery(o, d, dep, ret, passengers, cabin, maxStops, currency)
+            SearchQuery(o, d, dep, ret, passengers, cabin, maxStops, currency, carryOnBags)
         }
     }
     return Expansion(all.take(maxQueries), all.size)

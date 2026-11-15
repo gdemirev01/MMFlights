@@ -15,7 +15,7 @@ object Messages {
 
     fun dailySummary(t: Tracker, s: Snapshot, previous: Snapshot?, state: TrackerState): Message = message {
         line(text("✈️ "), bold(t.name), text(" — daily update"))
-        line(text("📅 ${dates(t)} · 👥 ${people(t.passengers)} · ${cabin(t.cabin)}"))
+        line(text("📅 ${dates(t)} · 👥 ${people(t.passengers)} · ${cabin(t.cabin)}" + bags(t)))
         blank()
         val best = s.best
         if (best == null) {
@@ -23,7 +23,8 @@ object Messages {
                       else "😕 No flights match your filters right now."))
         } else {
             price(best, t)
-            trend(best, previous?.best, state, t)?.let { line(it) }
+            trend(best, previous?.best?.takeIf { previous.comparableTo(s) }, state, t)?.let { line(it) }
+            if (!previous.comparableTo(s)) line(italic("🔄 Search settings changed, so price history starts fresh today."))
             blank()
             itinerary(best)
             best.bookingUrl?.let { line(text("🔗 "), link("Open in Google Flights", it)) }
@@ -191,6 +192,12 @@ object Messages {
     }.joinToString(", ")
 
     private fun cabin(c: Cabin) = c.name.lowercase().replace('_', ' ')
+
+    private fun bags(t: Tracker) = when (t.carryOnBags) {
+        0 -> ""
+        1 -> " · 🧳 1 cabin bag incl."
+        else -> " · 🧳 ${t.carryOnBags} cabin bags incl."
+    }
 
     private fun routeAndDates(q: SearchQuery) =
         "${q.origin}→${q.destination} ${SHORT.format(q.departDate)}" + (q.returnDate?.let { " ⇄ ${SHORT.format(it)}" } ?: "")

@@ -73,6 +73,7 @@ class ConfigTest {
         assertEquals("sofia-budapest-new-year", t.id)
         assertEquals(4, t.passengers.total)
         assertEquals(java.time.Duration.ofHours(5), t.times.maxDuration)
+        assertEquals(4, t.carryOnBags)
         val m = cfg.notifiers.filterIsInstance<mmflights.config.NotifierSettings.Messenger>().single()
         assertEquals(listOf("123", "456"), m.recipients)
         // exactly one search combination: SOF→BUD 30 Dec ⇄ 3 Jan
@@ -117,6 +118,11 @@ class ConfigTest {
         assertContains(all, "numeric")
         assertContains(all, "maxDuration")
         assertContains(all, "departAfter")
+    }
+
+    @Test fun `more cabin bags than seats is rejected`() {
+        val text = good.replace("passengers: { adults: 2, children: [8] }", "passengers: { adults: 2, children: [8] }\n    carryOnBags: 5")
+        assertContains(parseConfig(text, mapOf("SERP_KEY" to "k", "TG" to "t")).leftOrNull()!!.joinToString(), "carryOnBags must be 0..3")
     }
 
     @Test fun `cli parsing`() {

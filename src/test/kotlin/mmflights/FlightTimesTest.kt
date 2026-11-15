@@ -69,3 +69,30 @@ class CompletionTest {
         assertEquals(3, p.calls)
     }
 }
+
+class BagsTest {
+    private val withBags = Fixtures.query.copy(carryOnBags = 2)
+
+    @Test fun `bags are sent to Google Flights only when requested`() {
+        val p = mmflights.providers.SerpApiGoogleFlightsProvider(
+            mmflights.providers.httpClient(io.ktor.client.engine.mock.MockEngine { error("unused") }),
+            mmflights.config.ProviderSettings.SerpApi("k"),
+        )
+        assertEquals("2", p.params(withBags).toMap()["bags"])
+        assertNull(p.params(Fixtures.query).toMap()["bags"])
+    }
+
+    @Test fun `changing bags restarts history instead of reporting a price rise`() {
+        val before = Fixtures.snapshot(offer("1000"))
+        val after = Fixtures.snapshot(offer("1300").copy(query = withBags), at = "2026-11-16T07:00:00Z")
+        // treated as a fresh start, never as "price went up"
+        assertIs<PriceChange.FirstSeen>(detectChange(before, after, Fixtures.policy))
+        val state = TrackerState().record(before).record(after)
+        assertEquals(1, state.history.size)
+        assertEquals("1300", state.lowestEver!!.price!!.amount.toPlainString())
+        val text = Messages.dailySummary(tracker().copy(carryOnBags = 2), after, before, state).plain
+        assertContains(text, "🧳 2 cabin bags incl.")
+        assertContains(text, "price history starts fresh")
+        assertFalse("more than last check" in text)
+    }
+}

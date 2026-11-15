@@ -69,6 +69,8 @@ data class RawTracker(
     val maxPrice: Double? = null,
     val currency: String? = null,
     val maxQueries: Int = 40,
+    /** Number of cabin bags (trolleys) to include in the price; Google Flights adds the airlines' fees. */
+    val carryOnBags: Int = 0,
     val topN: Int = 5,
     val notify: RawNotify = RawNotify(),
 )
