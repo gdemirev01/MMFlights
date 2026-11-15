@@ -27,13 +27,28 @@ data class RawProviders(
 )
 
 @Serializable data class RawDuffel(val token: String, val baseUrl: String = "https://api.duffel.com")
-@Serializable data class RawSerpApi(val apiKey: String, val baseUrl: String = "https://serpapi.com", val language: String = "en", val country: String? = null)
+@Serializable
+data class RawSerpApi(
+    val apiKey: String,
+    val baseUrl: String = "https://serpapi.com",
+    val language: String = "en",
+    /** Google market, e.g. "bg" – affects which fares/currencies Google shows. */
+    val country: String? = null,
+    /** Spend one extra search per check to load the return flights of the cheapest round trip. */
+    val returnDetails: Boolean = true,
+)
 
 @Serializable
 sealed interface RawNotifier {
     @Serializable @SerialName("telegram") data class Telegram(val botToken: String, val chatId: String) : RawNotifier
     @Serializable @SerialName("slack") data class Slack(val webhookUrl: String) : RawNotifier
     @Serializable @SerialName("discord") data class Discord(val webhookUrl: String) : RawNotifier
+    /**
+     * Facebook Messenger via a Facebook Page. One-to-one only (Meta doesn't let bots post in group
+     * chats); [recipients] is a comma-separated list of page-scoped IDs (PSIDs).
+     */
+    @Serializable @SerialName("messenger")
+    data class Messenger(val pageAccessToken: String, val recipients: String, val graphVersion: String = "v24.0") : RawNotifier
     @Serializable @SerialName("console") data class Console(val enabled: Boolean = true) : RawNotifier
 }
 
@@ -50,6 +65,7 @@ data class RawTracker(
     val passengers: RawPassengers = RawPassengers(),
     val cabin: String = "economy",
     val maxStops: Int? = null,
+    val times: RawTimes = RawTimes(),
     val maxPrice: Double? = null,
     val currency: String? = null,
     val maxQueries: Int = 40,
@@ -58,6 +74,8 @@ data class RawTracker(
 )
 
 @Serializable data class RawDateRange(val from: String, val to: String? = null)
+/** Limits that make a flight "adequate": e.g. { maxDuration: 5h, departAfter: "07:00", arriveBefore: "23:00" } */
+@Serializable data class RawTimes(val maxDuration: String? = null, val departAfter: String? = null, val arriveBefore: String? = null)
 @Serializable data class RawStay(val min: Int, val max: Int)
 @Serializable data class RawPassengers(val adults: Int = 1, val children: List<Int> = emptyList(), val infants: Int = 0)
 

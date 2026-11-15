@@ -58,12 +58,13 @@ object Messages {
                 appendLine()
                 appendLine("Alternatives:")
                 snapshot.cheapest.drop(1).forEachIndexed { i, o ->
-                    appendLine("${i + 2}. ${o.price.show()} · ${o.query.label} · ${o.airlines.joinToString()} · ${stopsText(o.maxStops)}")
+                    val time = o.legs.firstOrNull()?.let { l -> " · out ${hm(l.departAt).substringAfter(' ').substringAfter(' ')}" + (l.durationMinutes?.let { " (${minutesText(it)})" } ?: "") }.orEmpty()
+                    appendLine("${i + 2}. ${o.price.show()} · ${o.query.label} · ${o.airlines.joinToString()} · ${stopsText(o.maxStops)}$time")
                 }
             }
         }
         appendLine()
-        append("Checked ${snapshot.queriesRun} searches")
+        append("Checked ${snapshot.queriesRun} search${if (snapshot.queriesRun != 1) "es" else ""}")
         if (snapshot.queriesFailed > 0) append(" (${snapshot.queriesFailed} failed)")
         append(" at ${timestamp(snapshot, tracker.notify.zone)}")
         snapshot.warnings.take(3).forEach { append("\n⚠️ $it") }
@@ -72,10 +73,13 @@ object Messages {
     fun describe(o: Offer): String = buildString {
         appendLine("${o.query.label} · ${o.airlines.joinToString()}")
         o.legs.forEachIndexed { i, leg ->
+            if (leg.segments.isEmpty()) return@forEachIndexed
             val title = if (i == 0) "Out" else "Back"
             val flights = leg.segments.joinToString(" + ") { "${it.carrier}${it.flightNumber} ${it.from}-${it.to}" }
-            appendLine("  $title: ${hm(leg.departAt)} → ${hm(leg.arriveAt)} · ${stopsText(leg.stops)} · $flights")
+            val duration = leg.durationMinutes?.let { " · ${minutesText(it)}" }.orEmpty()
+            appendLine("  $title: ${hm(leg.departAt)} → ${hm(leg.arriveAt)}$duration · ${stopsText(leg.stops)} · $flights")
         }
+        if (o.missingReturn) appendLine("  Back: on ${o.query.returnDate} (details not loaded; price is the round-trip total)")
         append("  via ${o.provider}")
         o.bookingUrl?.let { append(" · $it") }
     }
@@ -88,15 +92,25 @@ object Messages {
             if (p.infantsOnLap > 0) add("${p.infantsOnLap} infant${if (p.infantsOnLap != 1) "s" else ""}")
         }.joinToString(", ")
         val dates = when (val trip = t.trip) {
-            is Trip.OneWay -> "one-way ${trip.departure.from}..${trip.departure.to}"
-            is Trip.Return -> "out ${trip.departure.from}..${trip.departure.to}" +
-                (trip.returnWindow?.let { ", back ${it.from}..${it.to}" } ?: "") +
+            is Trip.OneWay -> "one-way ${span(trip.departure)}"
+            is Trip.Return -> "out ${span(trip.departure)}" +
+                (trip.returnWindow?.let { ", back ${span(it)}" } ?: "") +
                 (trip.stay?.let { ", ${it.minNights}-${it.maxNights} nights" } ?: "")
         }
-        return "${t.origins.joinToString("/")} → ${t.destinations.joinToString("/")} · $dates · $pax · " +
-            t.cabin.name.lowercase().replace('_', ' ')
+        val times = with(t.times) {
+            listOfNotNull(
+                maxDuration?.let { "≤ ${minutesText(it.toMinutes().toInt())} per way" },
+                departAfter?.let { "depart after $it" },
+                arriveBefore?.let { "arrive by $it" },
+            )
+        }
+        return (listOf(
+            "${t.origins.joinToString("/")} → ${t.destinations.joinToString("/")}", dates, pax,
+            t.cabin.name.lowercase().replace('_', ' '),
+        ) + times).joinToString(" · ")
     }
 
+    private fun span(r: DateRange) = if (r.from == r.to) "${r.from}" else "${r.from}..${r.to}"
     private fun delta(a: Offer, b: Offer) = Money((b.price.amount - a.price.amount).abs(), b.price.currency).show()
     private fun stopsText(n: Int) = when (n) { 0 -> "direct"; 1 -> "1 stop"; else -> "$n stops" }
     private fun hm(iso: String) = runCatching { LocalDateTime.parse(iso.take(19)).format(DateTimeFormatter.ofPattern("MMM d HH:mm")) }.getOrDefault(iso)

@@ -1,16 +1,16 @@
 # Runs the tracker on GitHub's schedule – no server needed.
 # Add your secrets under Settings → Secrets and variables → Actions
-# (e.g. SERPAPI_KEY, DUFFEL_TOKEN, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) and commit a config.yaml.
+# (e.g. SERPAPI_KEY, MESSENGER_PAGE_TOKEN, MESSENGER_RECIPIENT_IDS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) and commit a config.yaml.
 name: flight-tracker
 
 on:
   schedule:
-    - cron: "17 */3 * * *"   # every 3h: alert on price changes
-    - cron: "3 7 * * *"      # 07:03 UTC: daily summary
+    - cron: "17 */12 * * *"  # every 12h: alert on price changes
+    - cron: "3 7 * * *"      # 07:03 UTC (09:03 Sofia): daily summary
   workflow_dispatch:
     inputs:
       command:
-        description: "check or summary"
+        description: "check, summary or messenger-ids"
         default: summary
 
 concurrency: flight-tracker
@@ -39,6 +39,8 @@ jobs:
         env:
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           DUFFEL_TOKEN: ${{ secrets.DUFFEL_TOKEN }}
+          MESSENGER_PAGE_TOKEN: ${{ secrets.MESSENGER_PAGE_TOKEN }}
+          MESSENGER_RECIPIENT_IDS: ${{ secrets.MESSENGER_RECIPIENT_IDS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

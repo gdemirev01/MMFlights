@@ -14,6 +14,7 @@ providers:
   # serpapi:
   #   apiKey: "${SERPAPI_KEY}"
   #   country: bg          # optional market (affects prices/currency availability)
+  #   returnDetails: true  # one extra search per check to load the cheapest return flight
 
   # Duffel – direct airline connections (300+ airlines, NDC). Use a live token for real prices.
   # duffel:
@@ -25,6 +26,10 @@ notifiers:
   # - type: telegram
   #   botToken: "${TELEGRAM_BOT_TOKEN}"
   #   chatId: "${TELEGRAM_CHAT_ID}"
+  # Facebook Messenger: one-to-one only, 24-hour window (see README).
+  # - type: messenger
+  #   pageAccessToken: "${MESSENGER_PAGE_TOKEN}"
+  #   recipients: "${MESSENGER_RECIPIENT_IDS}"   # comma-separated PSIDs
   # - type: slack
   #   webhookUrl: "${SLACK_WEBHOOK_URL}"
   # - type: discord
@@ -43,6 +48,10 @@ trackers:
       infants: 0                            # under 2, on lap
     cabin: economy                          # economy | premium_economy | business | first
     maxStops: 1                             # omit for any
+    times:                                  # optional "adequate flight time" limits, both directions
+      maxDuration: 6h                       # including layovers
+      departAfter: "06:30"
+      arriveBefore: "23:59"
     maxPrice: 600                           # only alert on deals at/under this total (optional)
     maxQueries: 40                          # cap on date×route combinations per check
     topN: 5                                 # how many alternatives to keep/show

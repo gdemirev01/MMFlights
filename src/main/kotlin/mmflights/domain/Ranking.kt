@@ -1,14 +1,14 @@
 package mmflights.domain
 
 /**
- * Pure ranking of raw provider offers:
- *  - drops offers violating the tracker's stop limit,
+ * Pure ranking (cheapest first, shorter flight time breaks ties) of raw provider offers:
+ *  - drops offers violating the tracker's stop limit or flight-time limits,
  *  - compares only like-for-like currency (tracker currency, or the dominant one if no offer uses it),
  *  - de-duplicates the same itinerary found by several providers (keeping the cheapest),
  *  - returns the [Tracker.topN] cheapest.
  */
 fun rankOffers(tracker: Tracker, offers: List<Offer>): Pair<List<Offer>, List<String>> {
-    val eligible = offers.filter { o -> tracker.maxStops == null || o.maxStops <= tracker.maxStops }
+    val eligible = offers.filter { o -> (tracker.maxStops == null || o.maxStops <= tracker.maxStops) && o.fits(tracker.times) }
     if (eligible.isEmpty()) return emptyList<Offer>() to emptyList()
 
     val currency = eligible.map { it.price.currency }.let { cs ->
@@ -22,7 +22,7 @@ fun rankOffers(tracker: Tracker, offers: List<Offer>): Pair<List<Offer>, List<St
     }
 
     val ranked = same
-        .sortedBy { it.price.amount }
+        .sortedWith(compareBy<Offer> { it.price.amount }.thenBy { it.totalMinutes })
         .distinctBy { it.itineraryKey }
         .take(tracker.topN)
     return ranked to warnings

@@ -55,7 +55,7 @@ class DuffelProvider(private val client: HttpClient, private val settings: Provi
         price = Money(totalAmount.toBigDecimal(), totalCurrency),
         airlines = (listOf(owner.name) + slices.flatMap { s -> s.segments.map { it.marketingCarrier.name } }).distinct(),
         legs = slices.map { s ->
-            Leg(s.segments.map {
+            Leg(durationMinutes = s.duration?.let { d -> runCatching { java.time.Duration.parse(d).toMinutes().toInt() }.getOrNull() }, segments = s.segments.map {
                 Segment(
                     carrier = it.marketingCarrier.iataCode ?: it.marketingCarrier.name,
                     flightNumber = it.flightNumber,
@@ -120,7 +120,7 @@ data class DuffelOffer(
 )
 
 @Serializable data class DuffelAirline(val name: String, @SerialName("iata_code") val iataCode: String? = null)
-@Serializable data class DuffelSlice(val segments: List<DuffelSegment> = emptyList())
+@Serializable data class DuffelSlice(val segments: List<DuffelSegment> = emptyList(), val duration: String? = null)
 @Serializable data class DuffelPlace(@SerialName("iata_code") val iataCode: String)
 
 @Serializable

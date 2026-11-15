@@ -4,7 +4,9 @@ import arrow.core.NonEmptyList
 import kotlinx.serialization.Serializable
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Duration
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -43,6 +45,18 @@ sealed interface Trip {
 
 enum class AlertOn { ANY_CHANGE, DROPS_ONLY }
 
+/** "Adequate flight time": limits applied to every leg (outbound and return). Null = no limit. */
+data class FlightTimes(
+    /** Door-to-door per direction, including layovers. */
+    val maxDuration: Duration? = null,
+    /** Earliest acceptable local departure time. */
+    val departAfter: LocalTime? = null,
+    /** Latest acceptable local arrival time, same day as departure. */
+    val arriveBefore: LocalTime? = null,
+) {
+    val isUnrestricted: Boolean get() = maxDuration == null && departAfter == null && arriveBefore == null
+}
+
 data class NotifyPolicy(
     val onChange: Boolean,
     val alertOn: AlertOn,
@@ -62,6 +76,7 @@ data class Tracker(
     val passengers: Passengers,
     val cabin: Cabin,
     val maxStops: Int?,
+    val times: FlightTimes,
     val maxPrice: BigDecimal?,
     val currency: String,
     val notify: NotifyPolicy,
@@ -107,7 +122,11 @@ data class Segment(
 )
 
 @Serializable
-data class Leg(val segments: List<Segment>) {
+data class Leg(
+    val segments: List<Segment>,
+    /** Total minutes including layovers, when the provider reports it. */
+    val durationMinutes: Int? = null,
+) {
     val stops: Int get() = (segments.size - 1).coerceAtLeast(0)
     val departAt: String get() = segments.firstOrNull()?.departAt.orEmpty()
     val arriveAt: String get() = segments.lastOrNull()?.arriveAt.orEmpty()
@@ -122,8 +141,14 @@ data class Offer(
     /** Outbound first, then return (when the provider gives it). */
     val legs: List<Leg>,
     val bookingUrl: String? = null,
+    /** Provider-specific token to fetch more details later (e.g. Google's return flights). */
+    val continuation: String? = null,
 ) {
     val maxStops: Int get() = legs.maxOfOrNull { it.stops } ?: 0
+    val totalMinutes: Int get() = legs.sumOf { it.durationMinutes ?: 0 }
+
+    /** True when the provider hasn't told us the return flight yet. */
+    val missingReturn: Boolean get() = query.returnDate != null && legs.size < 2
 
     /** Identity of the itinerary regardless of which provider found it. */
     val itineraryKey: String
@@ -173,3 +198,19 @@ sealed interface PriceChange {
 
 /** Why a check was run – decides what gets sent. */
 enum class Trigger { POLL, DAILY, MANUAL }
+
+/** Pure check of a leg against the tracker's time limits. Unknown data never disqualifies. */
+fun Leg.fits(t: FlightTimes): Boolean {
+    fun parse(s: String) = runCatching { LocalDateTime.parse(s.take(16)) }.getOrNull()
+    val dep = parse(departAt)
+    val arr = parse(arriveAt)
+    val durationOk = t.maxDuration == null || durationMinutes == null || durationMinutes <= t.maxDuration.toMinutes()
+    val departOk = t.departAfter == null || dep == null || !dep.toLocalTime().isBefore(t.departAfter)
+    val arriveOk = t.arriveBefore == null || dep == null || arr == null ||
+        (arr.toLocalDate() == dep.toLocalDate() && !arr.toLocalTime().isAfter(t.arriveBefore))
+    return durationOk && departOk && arriveOk
+}
+
+fun Offer.fits(t: FlightTimes): Boolean = legs.all { it.fits(t) }
+
+fun minutesText(m: Int): String = "${m / 60}h" + (if (m % 60 != 0) "%02dm".format(m % 60) else "")

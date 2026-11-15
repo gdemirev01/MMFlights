@@ -4,6 +4,7 @@ import mmflights.app.parseArgs
 import mmflights.config.ProviderSettings
 import mmflights.config.parseConfig
 import mmflights.domain.Trip
+import mmflights.domain.expand
 import kotlin.test.*
 
 class ConfigTest {
@@ -62,6 +63,37 @@ class ConfigTest {
         val all = errs.joinToString("\n")
         listOf("pollInterval", "provider", "id may only", "origins", "destinations", "departure.from", "adults", "children", "cabin", "timezone")
             .forEach { assertContains(all, it) }
+    }
+
+    @Test fun `the shipped config yaml is valid`() {
+        val text = java.io.File("config.yaml").readText()
+        val env = mapOf("SERPAPI_KEY" to "k", "MESSENGER_PAGE_TOKEN" to "t", "MESSENGER_RECIPIENT_IDS" to "123, 456")
+        val cfg = parseConfig(text, env).fold({ fail(it.joinToString()) }, { it })
+        val t = cfg.trackers.single()
+        assertEquals("sofia-budapest-new-year", t.id)
+        assertEquals(4, t.passengers.total)
+        assertEquals(java.time.Duration.ofHours(5), t.times.maxDuration)
+        val m = cfg.notifiers.filterIsInstance<mmflights.config.NotifierSettings.Messenger>().single()
+        assertEquals(listOf("123", "456"), m.recipients)
+        // exactly one search combination: SOF→BUD 30 Dec ⇄ 3 Jan
+        val q = t.expand(java.time.LocalDate.parse("2026-11-15")).queries.single()
+        assertEquals("SOF→BUD 2026-12-30 ⇄ 2027-01-03", q.label)
+    }
+
+    @Test fun `the example config is valid`() {
+        assertTrue(parseConfig(java.io.File("config.example.yaml").readText(), emptyMap()).isRight())
+    }
+
+    @Test fun `bad messenger recipients and times are reported`() {
+        val text = good.replace("trackers:", """
+              - type: messenger
+                pageAccessToken: x
+                recipients: "maria"
+            trackers:""".trimIndent()).replace("notify: {", "times: { maxDuration: forever, departAfter: '25:00' }\n    notify: {")
+        val all = parseConfig(text, mapOf("SERP_KEY" to "k", "TG" to "t")).leftOrNull()!!.joinToString("\n")
+        assertContains(all, "numeric")
+        assertContains(all, "maxDuration")
+        assertContains(all, "departAfter")
     }
 
     @Test fun `cli parsing`() {

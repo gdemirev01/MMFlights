@@ -20,10 +20,11 @@ object Fixtures {
         maxQueries: Int = 100,
         maxStops: Int? = null,
         maxPrice: BigDecimal? = null,
+        times: FlightTimes = FlightTimes(),
         notify: NotifyPolicy = policy,
     ) = Tracker(
         id = "t1", name = "Sofia → London", origins = nonEmptyListOf("SOF"), destinations = nonEmptyListOf("LTN", "STN"),
-        trip = trip, passengers = Passengers(2, listOf(8)), cabin = Cabin.ECONOMY, maxStops = maxStops,
+        trip = trip, passengers = Passengers(2, listOf(8)), cabin = Cabin.ECONOMY, maxStops = maxStops, times = times,
         maxPrice = maxPrice, currency = "EUR", notify = notify, maxQueries = maxQueries, topN = 3,
     )
 
@@ -31,9 +32,13 @@ object Fixtures {
 
     val query = SearchQuery("SOF", "LTN", LocalDate.parse("2026-12-18"), LocalDate.parse("2026-12-25"), Passengers(2), Cabin.ECONOMY, null, "EUR")
 
-    fun offer(price: String, flight: String = "123", stops: Int = 0, currency: String = "EUR", provider: String = "p") = Offer(
+    fun offer(
+        price: String, flight: String = "123", stops: Int = 0, currency: String = "EUR", provider: String = "p",
+        depart: String = "2026-12-18T06:10:00", arrive: String = "2026-12-18T07:55:00", minutes: Int? = 165,
+        legs: Int = 1,
+    ) = Offer(
         provider = provider, query = query, price = Money(BigDecimal(price), currency), airlines = listOf("Wizz Air"),
-        legs = listOf(Leg(List(stops + 1) { i -> Segment("W6", "$flight$i", "SOF", "LTN", "2026-12-18T06:10:00", "2026-12-18T07:55:00") })),
+        legs = List(legs) { Leg(List(stops + 1) { i -> Segment("W6", "$flight$i", "SOF", "LTN", depart, arrive) }, minutes) },
     )
 
     fun snapshot(vararg offers: Offer, failed: Int = 0, at: String = "2026-11-15T07:00:00Z") =

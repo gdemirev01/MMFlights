@@ -56,12 +56,31 @@ class ProvidersTest {
             assertEquals("1", req.url.parameters["type"])
             respond(resource("serpapi.json"), HttpStatusCode.OK, jsonHeaders)
         }
-        val p = SerpApiGoogleFlightsProvider(httpClient(engine), ProviderSettings.SerpApi("k", "https://serpapi.com", "en", null))
+        val p = SerpApiGoogleFlightsProvider(httpClient(engine), ProviderSettings.SerpApi("k"))
         val offers = p.search(Fixtures.query).getOrNull()!!
         assertEquals(listOf("189.0", "240.0"), offers.map { it.price.amount.toPlainString() })
         val first = offers.first()
         assertEquals("FR", first.legs[0].segments[0].carrier)
         assertEquals("2026-12-18T06:05", first.legs[0].departAt)
+        assertEquals(225, first.legs[0].durationMinutes)
         assertEquals("https://www.google.com/travel/flights?x", first.bookingUrl)
+        assertTrue(first.missingReturn)
+    }
+
+    @Test fun `serpapi loads the return leg with the departure token`() = runTest {
+        val engine = MockEngine { req ->
+            val token = req.url.parameters["departure_token"]
+            respond(resource(if (token == null) "serpapi.json" else "serpapi-return.json"), HttpStatusCode.OK, jsonHeaders)
+                .also { if (token != null) assertEquals("TOKEN_FR", token) }
+        }
+        val p = SerpApiGoogleFlightsProvider(httpClient(engine), ProviderSettings.SerpApi("k"))
+        val outbound = p.search(Fixtures.query).getOrNull()!!.first()
+        // reject the 06:00 return → the 13:00 one (210) is chosen
+        val done = p.complete(outbound) { o -> o.legs.last().departAt.substring(11) >= "07:00" }.getOrNull()!!
+        assertEquals("210.0", done.price.amount.toPlainString())
+        assertEquals(2, done.legs.size)
+        assertEquals("2376", done.legs[1].segments[0].flightNumber)
+        assertFalse(done.missingReturn)
+        assertNull(p.complete(outbound) { false }.getOrNull())
     }
 }

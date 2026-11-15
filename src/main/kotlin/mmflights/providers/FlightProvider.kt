@@ -19,6 +19,12 @@ import mmflights.domain.SearchQuery
 interface FlightProvider {
     val name: String
     suspend fun search(query: SearchQuery): Either<ProviderError, List<Offer>>
+
+    /**
+     * Load details the first search didn't include (e.g. Google Flights' return leg) and pick the
+     * cheapest completion that [accept]s. Right(null) means no acceptable completion exists.
+     */
+    suspend fun complete(offer: Offer, accept: (Offer) -> Boolean): Either<ProviderError, Offer?> = Either.Right(offer)
 }
 
 data class ProviderError(val provider: String, val message: String)

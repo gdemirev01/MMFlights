@@ -28,6 +28,7 @@ fun notifiersFrom(settings: List<NotifierSettings>, client: HttpClient): List<No
         is NotifierSettings.Telegram -> TelegramNotifier(client, it)
         is NotifierSettings.Slack -> WebhookNotifier("slack", client, it.webhookUrl, "text", 39_000)
         is NotifierSettings.Discord -> WebhookNotifier("discord", client, it.webhookUrl, "content", 2_000)
+        is NotifierSettings.Messenger -> MessengerNotifier(client, it)
         NotifierSettings.Console -> ConsoleNotifier
     }
 }

@@ -9,6 +9,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mmflights.domain.Messages
+import mmflights.domain.Offer
+import mmflights.domain.fits
 import mmflights.domain.Snapshot
 import mmflights.domain.Tracker
 import mmflights.domain.TrackerState
@@ -52,14 +54,39 @@ suspend fun Env.search(tracker: Tracker): Snapshot {
         provider.search(query).onLeft { log.warn("[{}] {} {}: {}", tracker.id, it.provider, query.label, it.message) }
     }
     val failures = results.mapNotNull(Either<*, *>::leftOrNull)
-    val (ranked, rankWarnings) = rankOffers(tracker, results.flatMap { it.getOrNull().orEmpty() })
+    val (initial, rankWarnings) = rankOffers(tracker, results.flatMap { it.getOrNull().orEmpty() })
+    val (ranked, completionWarnings) = completeCheapest(tracker, initial)
 
     val warnings = buildList {
         if (plan.truncated) add("Only ${plan.queries.size} of ${plan.totalCombinations} date/route combinations searched (raise maxQueries to cover all).")
         addAll(rankWarnings)
+        addAll(completionWarnings)
         if (failures.isNotEmpty()) add("${failures.size} provider call(s) failed, e.g. ${failures.first()}")
     }
     return Snapshot(tracker.id, now, ranked, jobs.size, failures.size, warnings)
+}
+
+/**
+ * Some providers (Google Flights) list return trips by outbound flight only. Load the return leg
+ * for the cheapest offer, apply the same stop/time limits to it, and re-rank. If no acceptable
+ * return exists, that offer is dropped and the next one is tried (at most [budget] extra calls).
+ */
+suspend fun Env.completeCheapest(tracker: Tracker, ranked: List<Offer>, budget: Int = 3): Pair<List<Offer>, List<String>> {
+    val top = ranked.firstOrNull()
+    if (top == null || !top.missingReturn || budget == 0) return ranked to emptyList()
+    val provider = providers.firstOrNull { it.name == top.provider } ?: return ranked to emptyList()
+    val accept = { o: Offer -> o.fits(tracker.times) && (tracker.maxStops == null || o.maxStops <= tracker.maxStops) }
+
+    return when (val result = provider.complete(top, accept)) {
+        is Either.Left -> ranked to listOf("Couldn't load return flights: ${result.value.message}")
+        is Either.Right -> {
+            val rest = ranked.drop(1)
+            val next = result.value?.let { completed ->
+                (rest + completed).sortedWith(compareBy<Offer> { it.price.amount }.thenBy { it.totalMinutes })
+            } ?: rest
+            completeCheapest(tracker, next, budget - 1)
+        }
+    }
 }
 
 /** Pure decision: which messages a check produces. */

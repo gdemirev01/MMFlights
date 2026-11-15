@@ -12,6 +12,7 @@ import arrow.core.toNonEmptyListOrNull
 import mmflights.domain.AlertOn
 import mmflights.domain.Cabin
 import mmflights.domain.DateRange
+import mmflights.domain.FlightTimes
 import mmflights.domain.NotifyPolicy
 import mmflights.domain.Passengers
 import mmflights.domain.StayRange
@@ -32,7 +33,7 @@ fun RawConfig.validate(): Either<Errors, AppConfig> = either {
         { check(concurrency in 1..32, "concurrency must be between 1 and 32").bind() },
         { currencyCode("currency", currency).bind() },
         { providers.validate().bind() },
-        { notifiers.map(RawNotifier::toSettings) },
+        { notifiers.map { it.toSettings().bind() } },
         { trackersOf(this@validate).bindNel() },
     ) { poll, _, _, provs, notifs, trackers ->
         AppConfig(poll, concurrency, dataDir, provs, notifs, trackers)
@@ -72,14 +73,15 @@ fun RawTracker.validate(defaultCurrency: String): Either<Errors, Tracker> = eith
                 { check(maxQueries in 1..500, "maxQueries must be 1..500").bind() },
                 { check(topN in 1..20, "topN must be 1..20").bind() },
                 { check(maxPrice == null || maxPrice > 0, "maxPrice must be positive").bind() },
-            ) { _, _, _, _ -> }
+                { times.validate().bindNel() },
+            ) { _, _, _, _, ft -> ft }
         },
-    ) { _, orig, dest, trip, pax, cab, policy, cur, _ ->
+    ) { _, orig, dest, trip, pax, cab, policy, cur, flightTimes ->
         Tracker(
             id = id,
             name = name ?: "${orig.joinToString("/")} → ${dest.joinToString("/")}",
             origins = orig, destinations = dest, trip = trip, passengers = pax, cabin = cab,
-            maxStops = maxStops, maxPrice = maxPrice?.toBigDecimal(), currency = cur,
+            maxStops = maxStops, times = flightTimes, maxPrice = maxPrice?.toBigDecimal(), currency = cur,
             notify = policy, maxQueries = maxQueries, topN = topN,
         )
     }
@@ -105,6 +107,18 @@ private fun range(field: String, r: RawDateRange): Either<Errors, DateRange> = e
             DateRange(from, to)
         }
 }
+
+private fun RawTimes.validate(): Either<Errors, FlightTimes> = either {
+    zipOrAccumulate(
+        { maxDuration?.let { Either.catch { kotlin.time.Duration.parse(it) }.map { d -> Duration.ofMinutes(d.inWholeMinutes) }
+            .mapLeft { "times.maxDuration '$maxDuration' is not a duration (e.g. 4h, 5h 30m)" }.bind() } },
+        { departAfter?.let { time("times.departAfter", it).bind() } },
+        { arriveBefore?.let { time("times.arriveBefore", it).bind() } },
+    ) { d, a, b -> FlightTimes(d, a, b) }
+}
+
+private fun time(field: String, s: String): Either<String, LocalTime> =
+    Either.catch { LocalTime.parse(s) }.mapLeft { "$field '$s' must be HH:mm" }
 
 private fun RawPassengers.validate(): Either<Errors, Passengers> = either {
     zipOrAccumulate(
@@ -134,15 +148,22 @@ private fun RawNotify.validate(): Either<Errors, NotifyPolicy> = either {
 
 private fun RawProviders.validate(): Either<String, List<ProviderSettings>> = listOfNotNull(
     duffel?.let { ProviderSettings.Duffel(it.token, it.baseUrl.trimEnd('/')) },
-    serpapi?.let { ProviderSettings.SerpApi(it.apiKey, it.baseUrl.trimEnd('/'), it.language, it.country) },
+    serpapi?.let { ProviderSettings.SerpApi(it.apiKey, it.baseUrl.trimEnd('/'), it.language, it.country, it.returnDetails) },
     ProviderSettings.Demo.takeIf { demo },
 ).let { if (it.isEmpty()) "configure at least one provider (duffel, serpapi or demo: true)".left() else it.right() }
 
-private fun RawNotifier.toSettings(): NotifierSettings = when (this) {
-    is RawNotifier.Telegram -> NotifierSettings.Telegram(botToken, chatId)
-    is RawNotifier.Slack -> NotifierSettings.Slack(webhookUrl)
-    is RawNotifier.Discord -> NotifierSettings.Discord(webhookUrl)
-    is RawNotifier.Console -> NotifierSettings.Console
+private fun RawNotifier.toSettings(): Either<String, NotifierSettings> = when (this) {
+    is RawNotifier.Telegram -> NotifierSettings.Telegram(botToken, chatId).right()
+    is RawNotifier.Slack -> NotifierSettings.Slack(webhookUrl).right()
+    is RawNotifier.Discord -> NotifierSettings.Discord(webhookUrl).right()
+    is RawNotifier.Console -> NotifierSettings.Console.right()
+    is RawNotifier.Messenger -> recipients.split(',', ';', ' ', '\n').map(String::trim).filter(String::isNotEmpty).let { ids ->
+        when {
+            ids.isEmpty() -> "messenger.recipients is empty (run `mmflights messenger-ids` to find them)".left()
+            ids.any { !it.all(Char::isDigit) } -> "messenger.recipients must be numeric page-scoped IDs".left()
+            else -> NotifierSettings.Messenger(pageAccessToken, ids, graphVersion).right()
+        }
+    }
 }
 
 // --- small field parsers ------------------------------------------------------------------------

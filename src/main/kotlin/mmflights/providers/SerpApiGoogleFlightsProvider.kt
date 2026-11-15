@@ -21,10 +21,10 @@ import java.math.BigDecimal
 
 /**
  * Google Flights results via SerpApi (https://serpapi.com/google-flights-api). Google Flights
- * aggregates practically every airline, including most low-cost carriers.
+ * aggregates practically every airline, including low-cost carriers such as Ryanair and Wizz Air.
  *
- * For return trips the price is the round-trip total; Google only lists the outbound flights in
- * the first response, so offers carry the outbound leg only.
+ * For return trips Google first lists outbound flights priced as the round-trip total. When
+ * `returnDetails` is on, [complete] spends one extra search to load the matching return flights.
  */
 class SerpApiGoogleFlightsProvider(
     private val client: HttpClient,
@@ -33,9 +33,32 @@ class SerpApiGoogleFlightsProvider(
     override val name = "google-flights"
 
     override suspend fun search(query: SearchQuery): Either<ProviderError, List<Offer>> = either {
+        val body = call(params(query)).bind()
+        body.itineraries().map { it.toOffer(query, body.searchMetadata?.googleFlightsUrl) }
+    }
+
+    override suspend fun complete(offer: Offer, accept: (Offer) -> Boolean): Either<ProviderError, Offer?> = either {
+        val token = offer.continuation
+        if (!settings.returnDetails || !offer.missingReturn || token == null) return@either offer
+        val body = call(params(offer.query) + ("departure_token" to token)).bind()
+        body.itineraries()
+            .map { ret ->
+                offer.copy(
+                    price = Money(BigDecimal.valueOf(ret.price!!), offer.query.currency),
+                    airlines = (offer.airlines + ret.flights.map { it.airline }).distinct(),
+                    legs = offer.legs + ret.toLeg(),
+                    bookingUrl = body.searchMetadata?.googleFlightsUrl ?: offer.bookingUrl,
+                    continuation = null,
+                )
+            }
+            .filter(accept)
+            .minByOrNull { it.price.amount }
+    }
+
+    private suspend fun call(params: List<Pair<String, String>>): Either<ProviderError, SerpResponse> = either {
         val response = Either.catch {
             client.get("${settings.baseUrl}/search.json") {
-                params(query).forEach { (k, v) -> parameter(k, v) }
+                params.forEach { (k, v) -> parameter(k, v) }
                 parameter("api_key", settings.apiKey)
             }
         }.mapLeft { ProviderError(name, "request failed: ${it.message}") }.bind()
@@ -47,9 +70,7 @@ class SerpApiGoogleFlightsProvider(
         ensure(body.error == null || body.error.contains("hasn't returned any results", ignoreCase = true)) {
             ProviderError(name, body.error)
         }
-        (body.bestFlights + body.otherFlights)
-            .filter { it.price != null && it.flights.isNotEmpty() }
-            .map { it.toOffer(query, body.searchMetadata?.googleFlightsUrl) }
+        body
     }
 
     /** Pure mapping of a query to SerpApi parameters. */
@@ -72,12 +93,11 @@ class SerpApiGoogleFlightsProvider(
         settings.country?.let { add("gl" to it) }
     }
 
-    private fun SerpItinerary.toOffer(q: SearchQuery, url: String?) = Offer(
-        provider = name,
-        query = q,
-        price = Money(BigDecimal.valueOf(price!!), q.currency),
-        airlines = flights.map { it.airline }.distinct(),
-        legs = listOf(Leg(flights.map { f ->
+    private fun SerpResponse.itineraries() =
+        (bestFlights + otherFlights).filter { it.price != null && it.flights.isNotEmpty() }
+
+    private fun SerpItinerary.toLeg() = Leg(
+        segments = flights.map { f ->
             val (carrier, number) = f.flightNumber.trim().split(" ", limit = 2).let {
                 if (it.size == 2) it[0] to it[1] else f.airline to f.flightNumber
             }
@@ -89,8 +109,18 @@ class SerpApiGoogleFlightsProvider(
                 departAt = f.departureAirport.time.replace(' ', 'T'),
                 arriveAt = f.arrivalAirport.time.replace(' ', 'T'),
             )
-        })),
+        },
+        durationMinutes = totalDuration,
+    )
+
+    private fun SerpItinerary.toOffer(q: SearchQuery, url: String?) = Offer(
+        provider = name,
+        query = q,
+        price = Money(BigDecimal.valueOf(price!!), q.currency),
+        airlines = flights.map { it.airline }.distinct(),
+        legs = listOf(toLeg()),
         bookingUrl = url,
+        continuation = departureToken,
     )
 }
 
@@ -105,7 +135,14 @@ data class SerpResponse(
 )
 
 @Serializable data class SerpMetadata(@SerialName("google_flights_url") val googleFlightsUrl: String? = null)
-@Serializable data class SerpItinerary(val flights: List<SerpFlight> = emptyList(), val price: Double? = null)
+
+@Serializable
+data class SerpItinerary(
+    val flights: List<SerpFlight> = emptyList(),
+    val price: Double? = null,
+    @SerialName("total_duration") val totalDuration: Int? = null,
+    @SerialName("departure_token") val departureToken: String? = null,
+)
 
 @Serializable
 data class SerpFlight(

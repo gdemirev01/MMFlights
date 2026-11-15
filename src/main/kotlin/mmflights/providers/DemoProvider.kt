@@ -27,9 +27,14 @@ class DemoProvider(private val today: () -> LocalDate = LocalDate::now) : Flight
             val perPerson = 40 + rnd.nextInt(0, 260) + i * 7
             val trips = if (query.returnDate != null) 2 else 1
             val total = BigDecimal(perPerson * query.passengers.total * trips).setScale(2, RoundingMode.HALF_UP)
-            fun leg(from: String, to: String, date: LocalDate) = Leg(listOf(
-                Segment(code, "${100 + rnd.nextInt(900)}", from, to, "${date}T%02d:%02d".format(6 + rnd.nextInt(14), rnd.nextInt(4) * 15), "${date}T%02d:%02d".format(21, 0)),
-            ))
+            fun leg(from: String, to: String, date: LocalDate): Leg {
+                val depart = date.atTime(5 + rnd.nextInt(17), rnd.nextInt(4) * 15)
+                val minutes = 80 + rnd.nextInt(0, 6) * 45
+                return Leg(
+                    listOf(Segment(code, "${100 + rnd.nextInt(900)}", from, to, depart.toString(), depart.plusMinutes(minutes.toLong()).toString())),
+                    durationMinutes = minutes,
+                )
+            }
             Offer(
                 provider = name,
                 query = query,

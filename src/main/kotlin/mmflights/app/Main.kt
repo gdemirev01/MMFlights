@@ -6,6 +6,8 @@ import arrow.core.left
 import arrow.core.right
 import kotlinx.coroutines.runBlocking
 import mmflights.config.AppConfig
+import mmflights.config.NotifierSettings
+import mmflights.notify.MessengerNotifier
 import mmflights.config.loadConfig
 import mmflights.domain.Trigger
 import mmflights.notify.ConsoleNotifier
@@ -24,6 +26,7 @@ Commands:
   check      Run every tracker once and alert on significant changes (cron / CI friendly)
   summary    Run every tracker once and send the full summary now
   validate   Only check the config file
+  messenger-ids  List people who messaged your Facebook Page, with the IDs to put in 'recipients'
 
 Options:
   -c, --config <file>   Config file (default: config.yaml, or ${'$'}MMFLIGHTS_CONFIG)
@@ -43,7 +46,7 @@ fun parseArgs(args: List<String>, env: Map<String, String>): Either<String, Cli>
             if (rest.size < 2) "missing value for ${rest[0]}".left() else go(rest.drop(2), acc.copy(trackers = acc.trackers + rest[1]))
         rest[0] == "--dry-run" -> go(rest.drop(1), acc.copy(dryRun = true))
         rest[0] in setOf("-h", "--help") -> "help".left()
-        rest[0] in setOf("run", "check", "summary", "validate") -> go(rest.drop(1), acc.copy(command = rest[0]))
+        rest[0] in setOf("run", "check", "summary", "validate", "messenger-ids") -> go(rest.drop(1), acc.copy(command = rest[0]))
         else -> "unknown argument: ${rest[0]}".left()
     }
     return go(args, Cli("run", Path.of(env["MMFLIGHTS_CONFIG"] ?: "config.yaml"), emptySet(), false))
@@ -64,6 +67,7 @@ fun main(args: Array<String>) {
         println("✓ ${cli.config} is valid: ${config.trackers.size} tracker(s), ${config.providers.size} provider(s), ${config.notifiers.size} notifier(s)")
         return
     }
+    if (cli.command == "messenger-ids") exitProcess(runBlocking { messengerIds(config) })
     exitProcess(runBlocking { execute(cli, config) })
 }
 
@@ -86,4 +90,18 @@ private suspend fun execute(cli: Cli, config: AppConfig): Int = httpClient().use
         }
         else -> { env.runForever(trackers, config.pollInterval); 0 }
     }
+}
+
+private suspend fun messengerIds(config: AppConfig): Int = httpClient().use { client ->
+    val settings = config.notifiers.filterIsInstance<NotifierSettings.Messenger>().firstOrNull()
+        ?: return System.err.println("No 'messenger' notifier in the config.").let { 2 }
+    MessengerNotifier(client, settings).listRecipients().fold(
+        { System.err.println("Could not list conversations: $it"); 1 },
+        { people ->
+            if (people.isEmpty()) println("Nobody has messaged the Page yet. Ask everyone to send it a message first.")
+            people.forEach { (name, id) -> println("$id  $name") }
+            println("\nPut the IDs in MESSENGER_RECIPIENT_IDS, comma-separated.")
+            0
+        },
+    )
 }
