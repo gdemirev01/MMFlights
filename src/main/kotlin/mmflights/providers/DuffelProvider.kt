@@ -63,6 +63,7 @@ class DuffelProvider(private val client: HttpClient, private val settings: Provi
                     to = it.destination.iataCode,
                     departAt = it.departingAt,
                     arriveAt = it.arrivingAt,
+                    airline = it.marketingCarrier.name,
                 )
             })
         },

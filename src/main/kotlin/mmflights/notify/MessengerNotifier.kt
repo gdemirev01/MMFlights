@@ -19,6 +19,7 @@ import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import mmflights.config.NotifierSettings
+import mmflights.domain.Message
 import mmflights.domain.Messages
 import mmflights.providers.json
 
@@ -37,13 +38,13 @@ class MessengerNotifier(private val client: HttpClient, private val s: NotifierS
     override val name = "messenger"
     private val graph = "https://graph.facebook.com/${s.graphVersion}"
 
-    override suspend fun send(text: String): Either<String, Unit> {
+    override suspend fun send(message: Message): Either<String, Unit> {
         if (s.recipients.isEmpty()) {
             // Not an error: the Page may still be in setup while other channels deliver.
             log.warn("messenger: no recipients yet – save their IDs as MESSENGER_RECIPIENT_IDS to enable it")
             return Unit.right()
         }
-        val parts = Messages.chunk(text, 2_000)
+        val parts = Messages.chunk(message.plain, 2_000)
         val failures = s.recipients.mapNotNull { id ->
             parts.firstNotNullOfOrNull { part -> sendOne(id, part).leftOrNull() }?.let { "recipient $id: $it" }
         }

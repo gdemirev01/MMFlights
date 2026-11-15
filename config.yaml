@@ -7,9 +7,9 @@
 #   TELEGRAM_CHAT_ID         – the group's id, e.g. -1001234567890 (see README)
 
 currency: EUR
-# One route + one date pair = ~2 Google searches per check (outbound list + return flights).
-# 12h polling + the daily summary ≈ 6 searches/day ≈ 180/month. Raise to 24h on a small plan.
-pollInterval: 12h
+# Runs once a day (GitHub Action at 09:03 Sofia time). One route + one date pair costs
+# ~2 Google searches per run (outbound list + return flights) ≈ 60 searches/month.
+pollInterval: 24h
 concurrency: 2
 dataDir: data
 

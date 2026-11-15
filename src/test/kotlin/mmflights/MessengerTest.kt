@@ -27,7 +27,7 @@ class MessengerTest {
                 HttpStatusCode.BadRequest, jsonHeaders,
             ) else respond("""{"recipient_id":"111","message_id":"m"}""", HttpStatusCode.OK, jsonHeaders)
         }
-        val err = MessengerNotifier(httpClient(engine), settings).send("Hello ✈️").leftOrNull()
+        val err = MessengerNotifier(httpClient(engine), settings).send(mmflights.domain.message { line(mmflights.domain.text("Hello ✈️")) }).leftOrNull()
 
         assertEquals(2, bodies.size)
         assertContains(bodies[0], "\"messaging_type\":\"UPDATE\"")

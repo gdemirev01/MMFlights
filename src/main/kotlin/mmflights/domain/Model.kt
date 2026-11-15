@@ -119,6 +119,8 @@ data class Segment(
     /** Local date-time as returned by the provider (ISO-8601, no zone). */
     val departAt: String,
     val arriveAt: String,
+    /** Operating/marketing airline name, e.g. "Wizz Air", when the provider gives it. */
+    val airline: String? = null,
 )
 
 @Serializable

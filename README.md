@@ -77,9 +77,8 @@ Secrets come from environment variables through `${VAR}` (or `${VAR:-default}`).
 1. Create an account at [serpapi.com](https://serpapi.com) and copy your API key.
 2. Set it as `SERPAPI_KEY`: a repository secret for GitHub Actions, or an environment variable
    locally.
-3. Budget: the Budapest tracker uses about 2 searches per check. With 12-hour polling plus the
-   daily summary, that is about 180 searches a month. Compare that with your plan's limit, and set
-   `pollInterval: 24h` (and the cron in the workflow) if you need fewer.
+3. Budget: the Budapest tracker uses about 2 searches per run. Once a day, that is about
+   60 searches a month.
 
 ### Facebook Messenger setup
 
@@ -116,8 +115,10 @@ Steps:
 
 ## Running it on a schedule
 
-- **GitHub Actions (no server):** `.github/workflows/flight-tracker.yml` runs `check` every
-  12 hours and `summary` daily at 07:03 UTC (09:03 in Sofia). Scheduled workflows only run on the
+- **GitHub Actions (no server):** `.github/workflows/flight-tracker.yml` searches once a day
+  at 07:03 UTC (09:03 in Sofia) and posts the daily update, including the change since the
+  previous day. You can also start it manually from the Actions tab (`summary`, `check` or
+  `messenger-ids`). Scheduled workflows only run on the
   default branch, so merge this branch first. Price history is carried between runs in the
   Actions cache. Commit a `config.yaml` and add your keys as repository secrets.
 - **Docker / any server:**

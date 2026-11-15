@@ -15,31 +15,36 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import mmflights.config.NotifierSettings
+import mmflights.domain.DiscordMarkdown
+import mmflights.domain.Message
 import mmflights.domain.Messages
+import mmflights.domain.Renderer
+import mmflights.domain.SlackMrkdwn
+import mmflights.domain.TelegramHtml
 
 /** Somewhere to send a text message (a group chat, a channel, the terminal…). */
 interface Notifier {
     val name: String
-    suspend fun send(text: String): Either<String, Unit>
+    suspend fun send(message: Message): Either<String, Unit>
 }
 
 fun notifiersFrom(settings: List<NotifierSettings>, client: HttpClient): List<Notifier> = settings.map {
     when (it) {
         is NotifierSettings.Telegram -> TelegramNotifier(client, it)
-        is NotifierSettings.Slack -> WebhookNotifier("slack", client, it.webhookUrl, "text", 39_000)
-        is NotifierSettings.Discord -> WebhookNotifier("discord", client, it.webhookUrl, "content", 2_000)
+        is NotifierSettings.Slack -> WebhookNotifier("slack", client, it.webhookUrl, "text", 39_000, SlackMrkdwn)
+        is NotifierSettings.Discord -> WebhookNotifier("discord", client, it.webhookUrl, "content", 2_000, DiscordMarkdown)
         is NotifierSettings.Messenger -> MessengerNotifier(client, it)
         NotifierSettings.Console -> ConsoleNotifier
     }
 }
 
 /** Sends to every notifier; one failing channel doesn't stop the others. Returns failures. */
-suspend fun List<Notifier>.broadcast(text: String): List<String> =
-    mapNotNull { n -> n.send(text).leftOrNull()?.let { "${n.name}: $it" } }
+suspend fun List<Notifier>.broadcast(message: Message): List<String> =
+    mapNotNull { n -> n.send(message).leftOrNull()?.let { "${n.name}: $it" } }
 
 object ConsoleNotifier : Notifier {
     override val name = "console"
-    override suspend fun send(text: String): Either<String, Unit> = Either.Right(println("\n$text\n"))
+    override suspend fun send(message: Message): Either<String, Unit> = Either.Right(println("\n${message.plain}\n"))
 }
 
 /**
@@ -49,8 +54,8 @@ object ConsoleNotifier : Notifier {
 class TelegramNotifier(private val client: HttpClient, private val s: NotifierSettings.Telegram) : Notifier {
     override val name = "telegram"
 
-    override suspend fun send(text: String): Either<String, Unit> = either {
-        Messages.chunk(text, 4_000).forEach { part ->
+    override suspend fun send(message: Message): Either<String, Unit> = either {
+        Messages.chunk(TelegramHtml.render(message), 4_000).forEach { part ->
             val r = Either.catch {
                 client.post("https://api.telegram.org/bot${s.botToken}/sendMessage") {
                     contentType(ContentType.Application.Json)
@@ -69,9 +74,10 @@ class WebhookNotifier(
     private val url: String,
     private val field: String,
     private val maxLength: Int,
+    private val renderer: Renderer,
 ) : Notifier {
-    override suspend fun send(text: String): Either<String, Unit> = either {
-        Messages.chunk(text, maxLength).forEach { part ->
+    override suspend fun send(message: Message): Either<String, Unit> = either {
+        Messages.chunk(renderer.render(message), maxLength).forEach { part ->
             val r = Either.catch {
                 client.post(url) {
                     contentType(ContentType.Application.Json)
@@ -87,6 +93,7 @@ class WebhookNotifier(
 data class TelegramMessage(
     @SerialName("chat_id") val chatId: String,
     val text: String,
+    @SerialName("parse_mode") val parseMode: String = "HTML",
     @SerialName("disable_web_page_preview") val disablePreview: Boolean = true,
 )
 

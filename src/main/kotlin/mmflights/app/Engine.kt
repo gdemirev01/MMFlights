@@ -8,6 +8,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import mmflights.domain.Message
 import mmflights.domain.Messages
 import mmflights.domain.Offer
 import mmflights.domain.fits
@@ -39,7 +40,7 @@ data class Env(
     val clock: () -> Instant = Instant::now,
 )
 
-data class Outcome(val snapshot: Snapshot, val messages: List<String>, val deliveryFailures: List<String>)
+data class Outcome(val snapshot: Snapshot, val messages: List<Message>, val deliveryFailures: List<String>)
 
 private val log = LoggerFactory.getLogger("mmflights")
 
@@ -90,7 +91,7 @@ suspend fun Env.completeCheapest(tracker: Tracker, ranked: List<Offer>, budget: 
 }
 
 /** Pure decision: which messages a check produces. */
-fun messagesFor(tracker: Tracker, trigger: Trigger, before: TrackerState, after: TrackerState, snapshot: Snapshot): List<String> =
+fun messagesFor(tracker: Tracker, trigger: Trigger, before: TrackerState, after: TrackerState, snapshot: Snapshot): List<Message> =
     when (trigger) {
         Trigger.DAILY, Trigger.MANUAL -> listOf(Messages.dailySummary(tracker, snapshot, before.last, after))
         Trigger.POLL -> detectChange(before.last, snapshot, tracker.notify)

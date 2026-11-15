@@ -26,7 +26,7 @@ class EngineTest {
     private class Recorder : Notifier {
         override val name = "rec"
         val sent = mutableListOf<String>()
-        override suspend fun send(text: String): Either<String, Unit> = sent.add(text).let { Unit.right() }
+        override suspend fun send(message: mmflights.domain.Message): Either<String, Unit> = sent.add(message.plain).let { Unit.right() }
     }
 
     @Test fun `poll alerts only on changes, daily always summarises`() = runTest {
@@ -37,14 +37,14 @@ class EngineTest {
         val t = Fixtures.tracker()
 
         env.check(t, Trigger.POLL)
-        assertEquals(1, rec.sent.size); assertContains(rec.sent.last(), "First price")
+        assertEquals(1, rec.sent.size); assertContains(rec.sent.last(), "tracking started")
 
         env.check(t, Trigger.POLL)
         assertEquals(1, rec.sent.size, "no change → no message")
 
         cheap.price = "150"
         env.check(t, Trigger.POLL)
-        assertEquals(2, rec.sent.size); assertContains(rec.sent.last(), "DROPPED")
+        assertEquals(2, rec.sent.size); assertContains(rec.sent.last(), "Price drop")
 
         cheap.price = null; pricey.price = null
         val outcome = env.check(t, Trigger.POLL)
@@ -53,6 +53,6 @@ class EngineTest {
 
         cheap.price = "150"
         env.check(t, Trigger.DAILY)
-        assertEquals(3, rec.sent.size); assertContains(rec.sent.last(), "daily summary")
+        assertEquals(3, rec.sent.size); assertContains(rec.sent.last(), "daily update")
     }
 }

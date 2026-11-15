@@ -5,8 +5,7 @@ name: flight-tracker
 
 on:
   schedule:
-    - cron: "17 */12 * * *"  # every 12h: alert on price changes
-    - cron: "3 7 * * *"      # 07:03 UTC (09:03 Sofia): daily summary
+    - cron: "3 7 * * *"      # every day 07:03 UTC (09:03 Sofia): search + daily update
   workflow_dispatch:
     inputs:
       command:
@@ -49,8 +48,7 @@ jobs:
           INPUT_COMMAND: ${{ inputs.command }}
         run: |
           if [ "$EVENT" = "workflow_dispatch" ]; then CMD="$INPUT_COMMAND";
-          elif [ "$SCHEDULE" = "3 7 * * *" ]; then CMD=summary;
-          else CMD=check; fi
+          else CMD=summary; fi
           case "$CMD" in check|summary|messenger-ids) ;; *) echo "Unknown command: $CMD"; exit 2;; esac
           build/install/mmflights/bin/mmflights -c config.yaml "$CMD"
 
