@@ -91,7 +91,8 @@ class BagsTest {
         assertEquals(1, state.history.size)
         assertEquals("1300", state.lowestEver!!.price!!.amount.toPlainString())
         val text = Messages.dailySummary(tracker().copy(carryOnBags = 2), after, before, state).plain
-        assertContains(text, "🧳 2 cabin bags incl.")
+        assertContains(text, "🧳 2 cabin bags")
+        assertContains(text, "Bag fees may not be included")
         assertContains(text, "price history starts fresh")
         assertFalse("more than last check" in text)
     }

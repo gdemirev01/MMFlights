@@ -53,6 +53,6 @@ class EngineTest {
 
         cheap.price = "150"
         env.check(t, Trigger.DAILY)
-        assertEquals(3, rec.sent.size); assertContains(rec.sent.last(), "daily update")
+        assertEquals(3, rec.sent.size); assertContains(rec.sent.last(), "Daily update")
     }
 }

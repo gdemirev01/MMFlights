@@ -108,16 +108,18 @@ class ScheduleTest {
 
 class MessagesTest {
     @Test fun `summary shows total, per-person price, trend and alternatives`() {
-        val t = tracker() // 2 adults + 1 child = 3 people
+        val t = tracker(maxStops = 1, times = FlightTimes(java.time.Duration.ofHours(5), LocalTime.of(7, 0), LocalTime.of(23, 30)))
+            .copy(carryOnBags = 3) // 2 adults + 1 child = 3 people
         val prev = snapshot(offer("320"))
         val now = snapshot(offer("300"), offer("310", "5"))
         val text = Messages.dailySummary(t, now, prev, TrackerState().record(prev).record(now)).plain
-        assertContains(text, "€300 total · €100 per person")
-        assertContains(text, "€20 cheaper than last check")
-        assertContains(text, "🎉 lowest price so far")
-        assertContains(text, "🛫 Fri 18 Dec   06:10 SOF → 07:55 LTN")
-        assertContains(text, "Wizz Air · W6 1230 · 2h45m · direct")
-        assertContains(text, "2. €310 (€103.33 pp)")
+        assertContains(text, "💶 €300 total\n👤 €100 per person")
+        assertContains(text, "📉 €20 cheaper than last check\n🎉 lowest price so far")
+        assertContains(text, "🛫 Outbound · Fri 18 Dec\n06:10 SOF → 07:55 LTN · 2h45m\nW6 1230 · direct")
+        assertContains(text, "2. €310 · €103.33 pp\nWizz Air · direct · 06:10 · 2h45m")
+        assertContains(text, "🔎 ≤1 stop · max 5h · 07:00–23:30")
+        // every line fits a phone screen without wrapping
+        text.lines().filterNot { it.startsWith("🔗") }.forEach { assertTrue(it.length <= 40, "too long: $it") }
     }
 
     @Test fun `money formatting`() {
