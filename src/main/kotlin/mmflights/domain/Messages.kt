@@ -14,8 +14,9 @@ object Messages {
     // --- message layouts ------------------------------------------------------------------------
 
     fun dailySummary(t: Tracker, s: Snapshot, previous: Snapshot?, state: TrackerState): Message = message {
-        line(text("✈️ "), bold(t.name), text(" — daily update"))
-        line(text("📅 ${dates(t)} · 👥 ${people(t.passengers)} · ${cabin(t.cabin)}" + bags(t)))
+        line(text("✈️ "), bold(t.name))
+        line(text("📅 ${dates(t)}"))
+        line(text("👥 ${people(t.passengers)}" + (if (t.cabin != Cabin.ECONOMY) " · ${cabin(t.cabin)}" else "") + bags(t)))
         blank()
         val best = s.best
         if (best == null) {
@@ -23,7 +24,7 @@ object Messages {
                       else "😕 No flights match your filters right now."))
         } else {
             price(best, t)
-            trend(best, previous?.best?.takeIf { previous.comparableTo(s) }, state, t)?.let { line(it) }
+            trend(best, previous?.best?.takeIf { previous.comparableTo(s) }, state, t).forEach { line(text(it)) }
             if (!previous.comparableTo(s)) line(italic("🔄 Search settings changed, so price history starts fresh today."))
             blank()
             itinerary(best)
@@ -71,11 +72,13 @@ object Messages {
 
     // --- building blocks ------------------------------------------------------------------------
 
-    private fun MessageBuilder.price(o: Offer, t: Tracker) =
-        line(text("💶 "), bold("${money(o.price)} total"), text(" · ${money(perPerson(o, t))} per person"))
+    private fun MessageBuilder.price(o: Offer, t: Tracker) {
+        line(text("💶 "), bold("${money(o.price)} total"))
+        line(text("👤 ${money(perPerson(o, t))} per person"))
+    }
 
-    private fun trend(best: Offer, prev: Offer?, state: TrackerState, t: Tracker): List<Span>? {
-        val parts = buildList {
+    private fun trend(best: Offer, prev: Offer?, state: TrackerState, t: Tracker): List<String> =
+        buildList {
             if (prev != null && prev.price.currency == best.price.currency) {
                 val d = best.price.amount - prev.price.amount
                 add(when (d.signum()) {
@@ -88,36 +91,53 @@ object Messages {
             when {
                 lowest == null || state.history.count { it.price != null } < 2 -> {}
                 best.price.amount <= lowest.amount -> add("🎉 lowest price so far")
-                else -> add("lowest seen ${money(lowest)}")
+                else -> add("⬇️ lowest seen ${money(lowest)}")
             }
             t.maxPrice?.let { target ->
                 add(if (best.price.amount <= target) "✅ under your ${money(Money(target, best.price.currency))} target"
                     else "🎯 target ${money(Money(target, best.price.currency))}")
             }
         }
-        return parts.takeIf { it.isNotEmpty() }?.let { listOf(text(it.joinToString(" · "))) }
-    }
 
+
+    /**
+     * One compact block per direction; every line is short enough not to wrap on a phone:
+     *   🛫 Outbound · Wed 30 Dec
+     *   18:30 SOF → 18:55 BUD · 1h25m
+     *   Ryanair FR 5571 · direct
+     */
     private fun MessageBuilder.itinerary(o: Offer) {
         o.legs.forEachIndexed { i, leg ->
             if (leg.segments.isEmpty()) return@forEachIndexed
             val dep = parse(leg.departAt)
             val arr = parse(leg.arriveAt)
             val plusDays = if (dep != null && arr != null) arr.toLocalDate().toEpochDay() - dep.toLocalDate().toEpochDay() else 0
-            line(
-                text(if (i == 0) "🛫 " else "🛬 "),
-                bold(dep?.let { DAY.format(it) } ?: leg.departAt.take(10)),
-                text("   ${hm(dep)} ${leg.segments.first().from} → ${hm(arr)} ${leg.segments.last().to}" +
-                    (if (plusDays > 0) " (+$plusDays)" else "")),
-            )
-            val airlines = leg.segments.mapNotNull { it.airline }.distinct().ifEmpty { o.airlines }.joinToString(" + ")
-            val flights = leg.segments.joinToString(", ") { "${it.carrier} ${it.flightNumber}" }
-            val details = listOfNotNull(airlines.ifBlank { null }, flights, leg.durationMinutes?.let(::minutesText), stopsText(leg.stops))
-            line(text("       ${details.joinToString(" · ")}"))
+            if (i > 0) blank()
+            line(text(if (i == 0) "🛫 " else "🛬 "), bold("${if (i == 0) "Outbound" else "Return"} · ${dep?.let { DAY.format(it) } ?: leg.departAt.take(10)}"))
+            line(text(
+                "${hm(dep)} ${leg.segments.first().from} → ${hm(arr)}${if (plusDays > 0) "⁺¹" else ""} ${leg.segments.last().to}" +
+                    (leg.durationMinutes?.let { " · ${minutesText(it)}" } ?: "")
+            ))
+            val names = leg.segments.mapNotNull { it.airline }.distinct()
+            val flights = leg.segments.joinToString(" + ") { seg ->
+                val name = seg.airline?.takeIf { names.size > 1 || seg == leg.segments.first() }
+                listOfNotNull(name, "${seg.carrier} ${seg.flightNumber}").joinToString(" ")
+            }
+            val via = leg.segments.dropLast(1).joinToString(", ") { it.to }
+            line(text(flights + " · " + if (leg.stops == 0) "direct" else "${stopsText(leg.stops)} ($via)"))
         }
-        if (o.missingReturn) line(text("🛬 "), bold(DAY.format(o.query.returnDate!!)), text("   return flight details not loaded"))
+        if (o.missingReturn) {
+            blank()
+            line(text("🛬 "), bold("Return · ${DAY.format(o.query.returnDate!!)}"))
+            line(italic("Flight details not loaded"))
+        }
     }
 
+    /**
+     * Two short lines per option:
+     *   2. €1,340 · €335 pp
+     *   Wizz Air · direct · 14:35 · 1h25m
+     */
     private fun MessageBuilder.alternatives(others: List<Offer>, best: Offer, t: Tracker) {
         if (others.isEmpty()) return
         val showDates = others.any { it.query.departDate != best.query.departDate || it.query.returnDate != best.query.returnDate } ||
@@ -126,27 +146,33 @@ object Messages {
         line(bold("Other options"))
         others.forEachIndexed { i, o ->
             val out = o.legs.firstOrNull()
-            val details = listOfNotNull(
+            line(text("${i + 2}. "), bold(money(o.price)), text(" · ${money(perPerson(o, t))} pp"))
+            line(text(listOfNotNull(
                 o.airlines.joinToString(" + "),
                 stopsText(o.maxStops),
-                out?.let { "out ${hm(parse(it.departAt))}" + (it.durationMinutes?.let { m -> " (${minutesText(m)})" } ?: "") },
-                if (showDates) routeAndDates(o.query) else null,
-            )
-            line(text("${i + 2}. "), bold(money(o.price)), text(" (${money(perPerson(o, t))} pp) · ${details.joinToString(" · ")}"))
+                out?.let { hm(parse(it.departAt)) },
+                out?.durationMinutes?.let(::minutesText),
+            ).joinToString(" · ")))
+            if (showDates) line(text(routeAndDates(o.query)))
         }
     }
 
     private fun MessageBuilder.footer(t: Tracker, s: Snapshot) {
         val filters = with(t.times) {
             listOfNotNull(
-                t.maxStops?.let { if (it == 0) "direct only" else "≤ $it stop${if (it > 1) "s" else ""}" },
-                maxDuration?.let { "≤ ${minutesText(it.toMinutes().toInt())} per way" },
-                departAfter?.let { "depart after $it" },
-                arriveBefore?.let { "land by $it" },
+                t.maxStops?.let { if (it == 0) "direct" else "≤$it stop${if (it > 1) "s" else ""}" },
+                maxDuration?.let { "max ${minutesText(it.toMinutes().toInt())}" },
+                when {
+                    departAfter != null && arriveBefore != null -> "$departAfter–$arriveBefore"
+                    departAfter != null -> "after $departAfter"
+                    arriveBefore != null -> "land by $arriveBefore"
+                    else -> null
+                },
             )
         }
-        val checked = "Checked ${TIMESTAMP.format(s.takenAt.atZone(t.notify.zone))}"
-        line(italic((listOf(checked) + filters).joinToString(" · ")))
+        if (filters.isNotEmpty()) line(italic("🔎 ${filters.joinToString(" · ")}"))
+        if (t.carryOnBags > 0) line(italic("🧳 Bag fees may not be included"))
+        line(italic("Daily update · ${TIMESTAMP.format(s.takenAt.atZone(t.notify.zone))}"))
         s.warnings.take(2).forEach { line(italic("⚠️ $it")) }
     }
 
@@ -195,8 +221,8 @@ object Messages {
 
     private fun bags(t: Tracker) = when (t.carryOnBags) {
         0 -> ""
-        1 -> " · 🧳 1 cabin bag incl."
-        else -> " · 🧳 ${t.carryOnBags} cabin bags incl."
+        1 -> " · 🧳 1 cabin bag"
+        else -> " · 🧳 ${t.carryOnBags} cabin bags"
     }
 
     private fun routeAndDates(q: SearchQuery) =
