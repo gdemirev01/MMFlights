@@ -82,6 +82,8 @@ data class Tracker(
     val notify: NotifyPolicy,
     val maxQueries: Int,
     val topN: Int,
+    /** Cabin bags (trolleys) whose fees should be included in the price. Google Flights only. */
+    val carryOnBags: Int = 0,
 )
 
 // ---------------------------------------------------------------------------------------------
@@ -98,7 +100,12 @@ data class SearchQuery(
     val cabin: Cabin,
     val maxStops: Int? = null,
     val currency: String,
+    val carryOnBags: Int = 0,
 ) {
+    /** What the price depends on besides route and dates; prices are only comparable within one basis. */
+    val basis: String
+        get() = "${passengers.adults}/${passengers.childAges}/${passengers.infantsOnLap}|$cabin|bags=$carryOnBags|$currency"
+
     val label: String
         get() = "$origin→$destination $departDate" + (returnDate?.let { " ⇄ $it" } ?: "")
 }

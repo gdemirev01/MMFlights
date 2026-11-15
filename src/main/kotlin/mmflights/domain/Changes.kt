@@ -9,7 +9,7 @@ import java.math.MathContext
  */
 fun detectChange(previous: Snapshot?, current: Snapshot, policy: NotifyPolicy): PriceChange? {
     if (current.isBlind) return null // every provider failed: don't confuse "unknown" with "gone"
-    val old = previous?.best
+    val old = previous?.best?.takeIf { previous.comparableTo(current) }
     val new = current.best
     return when {
         old == null && new == null -> null
@@ -47,8 +47,19 @@ fun PriceChange.respectsCeiling(tracker: Tracker): Boolean {
 
 /** Fold a new snapshot into the stored state, keeping a bounded price history. */
 fun TrackerState.record(snapshot: Snapshot, maxHistory: Int = 1000): TrackerState =
-    if (snapshot.isBlind) copy(history = (history + PricePoint(snapshot.takenAt, null)).takeLast(maxHistory))
+    if (!last.comparableTo(snapshot)) TrackerState(last = snapshot, history = listOf(PricePoint(snapshot.takenAt, snapshot.best?.price)))
+    else if (snapshot.isBlind) copy(history = (history + PricePoint(snapshot.takenAt, null)).takeLast(maxHistory))
     else TrackerState(
         last = snapshot,
         history = (history + PricePoint(snapshot.takenAt, snapshot.best?.price)).takeLast(maxHistory),
     )
+
+/**
+ * False when the search settings that affect price (passengers, cabin, bags, currency) changed
+ * between two snapshots – e.g. after turning on bag fees. Such prices must not be compared.
+ */
+fun Snapshot?.comparableTo(other: Snapshot): Boolean {
+    val a = this?.best?.query?.basis ?: return true
+    val b = other.best?.query?.basis ?: return true
+    return a == b
+}

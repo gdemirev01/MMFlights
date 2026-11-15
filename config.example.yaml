@@ -47,6 +47,7 @@ trackers:
       children: [8]                         # ages 2-17
       infants: 0                            # under 2, on lap
     cabin: economy                          # economy | premium_economy | business | first
+    carryOnBags: 2                          # include fees for this many cabin bags (Google Flights)
     maxStops: 1                             # omit for any
     times:                                  # optional "adequate flight time" limits, both directions
       maxDuration: 6h                       # including layovers

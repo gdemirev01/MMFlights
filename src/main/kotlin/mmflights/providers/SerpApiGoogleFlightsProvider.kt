@@ -88,6 +88,7 @@ class SerpApiGoogleFlightsProvider(
             Cabin.ECONOMY -> "1"; Cabin.PREMIUM_ECONOMY -> "2"; Cabin.BUSINESS -> "3"; Cabin.FIRST -> "4"
         })
         add("stops" to when (q.maxStops) { null -> "0"; 0 -> "1"; 1 -> "2"; else -> "3" })
+        if (q.carryOnBags > 0) add("bags" to q.carryOnBags.toString())  // fees included in the price
         add("currency" to q.currency)
         add("hl" to settings.language)
         settings.country?.let { add("gl" to it) }

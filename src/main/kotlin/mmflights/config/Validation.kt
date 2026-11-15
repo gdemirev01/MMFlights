@@ -73,15 +73,19 @@ fun RawTracker.validate(defaultCurrency: String): Either<Errors, Tracker> = eith
                 { check(maxQueries in 1..500, "maxQueries must be 1..500").bind() },
                 { check(topN in 1..20, "topN must be 1..20").bind() },
                 { check(maxPrice == null || maxPrice > 0, "maxPrice must be positive").bind() },
+                {
+                    val seats = passengers.adults + passengers.children.size
+                    check(carryOnBags in 0..seats, "carryOnBags must be 0..$seats (one per adult or child at most)").bind()
+                },
                 { times.validate().bindNel() },
-            ) { _, _, _, _, ft -> ft }
+            ) { _, _, _, _, _, ft -> ft }
         },
     ) { _, orig, dest, trip, pax, cab, policy, cur, flightTimes ->
         Tracker(
             id = id,
             name = name ?: "${orig.joinToString("/")} → ${dest.joinToString("/")}",
             origins = orig, destinations = dest, trip = trip, passengers = pax, cabin = cab,
-            maxStops = maxStops, times = flightTimes, maxPrice = maxPrice?.toBigDecimal(), currency = cur,
+            maxStops = maxStops, times = flightTimes, maxPrice = maxPrice?.toBigDecimal(), currency = cur, carryOnBags = carryOnBags,
             notify = policy, maxQueries = maxQueries, topN = topN,
         )
     }

@@ -61,6 +61,9 @@ for each tracker:
 - Return dates: set `stay: {min, max}` (nights), `return: {from, to}`, or both (their
   intersection is used). Set `oneWay: true` for one-way trips.
 - `passengers: {adults, children: [ages], infants}`, `cabin`, `maxStops`
+- `carryOnBags`: how many cabin bags (trolleys) to include in the price. Google Flights adds each
+  airline's bag fees, so low-cost fares become comparable with fares that include a bag. Only
+  cabin bags are supported; the search API can't price checked bags.
 - `times: {maxDuration, departAfter, arriveBefore}`: what counts as an *adequate flight time*.
   It applies to both directions. Among acceptable flights, the cheapest wins and the shorter one
   breaks a tie.

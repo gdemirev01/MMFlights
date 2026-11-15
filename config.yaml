@@ -43,6 +43,8 @@ trackers:
       children: []
       infants: 0
     cabin: economy
+    carryOnBags: 4            # cabin bags (trolleys) whose fees are included in the price;
+                              # 0 = small under-seat bag only. Checked bags aren't supported.
     maxStops: 1               # direct is ~1.5h; allow one short connection
     times:                    # "adequate flight time", applied to both directions
       maxDuration: 5h         # door to door, including any layover
