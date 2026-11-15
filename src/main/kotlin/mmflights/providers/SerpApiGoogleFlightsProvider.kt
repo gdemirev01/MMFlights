@@ -108,6 +108,7 @@ class SerpApiGoogleFlightsProvider(
                 to = f.arrivalAirport.id,
                 departAt = f.departureAirport.time.replace(' ', 'T'),
                 arriveAt = f.arrivalAirport.time.replace(' ', 'T'),
+                airline = f.airline.ifBlank { null },
             )
         },
         durationMinutes = totalDuration,

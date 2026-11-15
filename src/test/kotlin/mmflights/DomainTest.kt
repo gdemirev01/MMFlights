@@ -107,14 +107,31 @@ class ScheduleTest {
 }
 
 class MessagesTest {
-    @Test fun `summary mentions price, trend and alternatives`() {
-        val t = tracker()
+    @Test fun `summary shows total, per-person price, trend and alternatives`() {
+        val t = tracker() // 2 adults + 1 child = 3 people
         val prev = snapshot(offer("320"))
         val now = snapshot(offer("300"), offer("310", "5"))
-        val text = Messages.dailySummary(t, now, prev, TrackerState().record(prev).record(now))
-        assertContains(text, "Cheapest: 300.00 EUR")
-        assertContains(text, "▼ 20.00 EUR")
-        assertContains(text, "2. 310.00 EUR")
+        val text = Messages.dailySummary(t, now, prev, TrackerState().record(prev).record(now)).plain
+        assertContains(text, "€300 total · €100 per person")
+        assertContains(text, "€20 cheaper than last check")
+        assertContains(text, "🎉 lowest price so far")
+        assertContains(text, "🛫 Fri 18 Dec   06:10 SOF → 07:55 LTN")
+        assertContains(text, "Wizz Air · W6 1230 · 2h45m · direct")
+        assertContains(text, "2. €310 (€103.33 pp)")
+    }
+
+    @Test fun `money formatting`() {
+        assertEquals("€1,108", Messages.money(Money(java.math.BigDecimal("1108.00"), "EUR")))
+        assertEquals("€459.25", Messages.money(Money(java.math.BigDecimal("459.25"), "EUR")))
+        assertEquals("1,200 BGN", Messages.money(Money(java.math.BigDecimal("1200"), "BGN")))
+    }
+
+    @Test fun `renderers apply each chat's markup and escaping`() {
+        val m = message { line(text("a < b & "), bold("Bold"), text(" "), italic("it"), text(" "), link("Book", "https://x.y/?a=1&b=2")) }
+        assertEquals("a &lt; b &amp; <b>Bold</b> <i>it</i> <a href=\"https://x.y/?a=1&amp;b=2\">Book</a>", TelegramHtml.render(m))
+        assertEquals("a &lt; b &amp; *Bold* _it_ <https://x.y/?a=1&b=2|Book>", SlackMrkdwn.render(m))
+        assertEquals("a < b & **Bold** *it* [Book](<https://x.y/?a=1&b=2>)", DiscordMarkdown.render(m))
+        assertEquals("a < b & Bold it Book: https://x.y/?a=1&b=2", m.plain)
     }
 
     @Test fun `chunking respects the limit and keeps all lines`() {

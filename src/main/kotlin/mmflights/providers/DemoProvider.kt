@@ -31,7 +31,7 @@ class DemoProvider(private val today: () -> LocalDate = LocalDate::now) : Flight
                 val depart = date.atTime(5 + rnd.nextInt(17), rnd.nextInt(4) * 15)
                 val minutes = 80 + rnd.nextInt(0, 6) * 45
                 return Leg(
-                    listOf(Segment(code, "${100 + rnd.nextInt(900)}", from, to, depart.toString(), depart.plusMinutes(minutes.toLong()).toString())),
+                    listOf(Segment(code, "${100 + rnd.nextInt(900)}", from, to, depart.toString(), depart.plusMinutes(minutes.toLong()).toString(), airline)),
                     durationMinutes = minutes,
                 )
             }
