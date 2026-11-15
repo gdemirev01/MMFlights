@@ -90,6 +90,19 @@ class ConfigTest {
         assertEquals(emptyList(), tokenOnly.getOrNull()!!.notifiers.filterIsInstance<mmflights.config.NotifierSettings.Messenger>().single().recipients)
     }
 
+    @Test fun `telegram is enabled only when both secrets are set`() {
+        val text = java.io.File("config.yaml").readText()
+        val both = parseConfig(text, mapOf("SERPAPI_KEY" to "k", "TELEGRAM_BOT_TOKEN" to "123:abc", "TELEGRAM_CHAT_ID" to "-1001234567890"))
+        assertEquals(
+            mmflights.config.NotifierSettings.Telegram("123:abc", "-1001234567890"),
+            both.getOrNull()!!.notifiers.filterIsInstance<mmflights.config.NotifierSettings.Telegram>().single(),
+        )
+        val one = parseConfig(text, mapOf("SERPAPI_KEY" to "k", "TELEGRAM_BOT_TOKEN" to "123:abc"))
+        assertContains(one.leftOrNull()!!.joinToString(), "telegram.chatId")
+        val bad = parseConfig(text, mapOf("SERPAPI_KEY" to "k", "TELEGRAM_BOT_TOKEN" to "t", "TELEGRAM_CHAT_ID" to "my group"))
+        assertContains(bad.leftOrNull()!!.joinToString(), "-1001234567890")
+    }
+
     @Test fun `the example config is valid`() {
         assertTrue(parseConfig(java.io.File("config.example.yaml").readText(), emptyMap()).isRight())
     }

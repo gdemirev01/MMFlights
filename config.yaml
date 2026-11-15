@@ -3,6 +3,8 @@
 #   SERPAPI_KEY              – https://serpapi.com/manage-api-key
 #   MESSENGER_PAGE_TOKEN     – Page access token of your Facebook Page (see README)
 #   MESSENGER_RECIPIENT_IDS  – comma-separated PSIDs (run `mmflights messenger-ids`)
+#   TELEGRAM_BOT_TOKEN       – from @BotFather
+#   TELEGRAM_CHAT_ID         – the group's id, e.g. -1001234567890 (see README)
 
 currency: EUR
 # One route + one date pair = ~2 Google searches per check (outbound list + return flights).
@@ -23,11 +25,11 @@ notifiers:
     # Skipped automatically until both secrets exist; results still go to the job log.
     pageAccessToken: "${MESSENGER_PAGE_TOKEN:-}"
     recipients: "${MESSENGER_RECIPIENT_IDS:-}"
+  # Telegram group chat (no 24-hour limit). Skipped until both secrets exist.
+  - type: telegram
+    botToken: "${TELEGRAM_BOT_TOKEN:-}"
+    chatId: "${TELEGRAM_CHAT_ID:-}"
   - type: console             # also print to the job log
-  # Telegram works in group chats with no 24-hour limit – recommended as a backup:
-  # - type: telegram
-  #   botToken: "${TELEGRAM_BOT_TOKEN}"
-  #   chatId: "${TELEGRAM_CHAT_ID}"
 
 trackers:
   - id: sofia-budapest-new-year
