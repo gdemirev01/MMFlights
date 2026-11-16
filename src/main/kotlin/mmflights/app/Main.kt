@@ -25,6 +25,7 @@ Commands:
   run        Keep running: poll for price changes and send the daily summaries (default)
   check      Run every tracker once and alert on significant changes (cron / CI friendly)
   summary    Run every tracker once and send the full summary now
+  daily      The scheduled update: at most one per day, safe to trigger several times
   validate   Only check the config file
   messenger-ids  List people who messaged your Facebook Page, with the IDs to put in 'recipients'
 
@@ -46,7 +47,7 @@ fun parseArgs(args: List<String>, env: Map<String, String>): Either<String, Cli>
             if (rest.size < 2) "missing value for ${rest[0]}".left() else go(rest.drop(2), acc.copy(trackers = acc.trackers + rest[1]))
         rest[0] == "--dry-run" -> go(rest.drop(1), acc.copy(dryRun = true))
         rest[0] in setOf("-h", "--help") -> "help".left()
-        rest[0] in setOf("run", "check", "summary", "validate", "messenger-ids") -> go(rest.drop(1), acc.copy(command = rest[0]))
+        rest[0] in setOf("run", "check", "summary", "daily", "validate", "messenger-ids") -> go(rest.drop(1), acc.copy(command = rest[0]))
         else -> "unknown argument: ${rest[0]}".left()
     }
     return go(args, Cli("run", Path.of(env["MMFLIGHTS_CONFIG"] ?: "config.yaml"), emptySet(), false))
@@ -88,6 +89,7 @@ private suspend fun execute(cli: Cli, config: AppConfig): Int = httpClient().use
             val outcomes = trackers.map { env.check(it, trigger) }
             if (outcomes.any { it.deliveryFailures.isNotEmpty() || it.snapshot.isBlind }) 1 else 0
         }
+        "daily" -> if (trackers.map { env.daily(it) }.all { it }) 0 else 1
         else -> { env.runForever(trackers, config.pollInterval); 0 }
     }
 }

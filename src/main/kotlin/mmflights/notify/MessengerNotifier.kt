@@ -36,6 +36,7 @@ private val log = org.slf4j.LoggerFactory.getLogger("mmflights")
 
 class MessengerNotifier(private val client: HttpClient, private val s: NotifierSettings.Messenger) : Notifier {
     override val name = "messenger"
+    override val reachesPeople: Boolean get() = s.recipients.isNotEmpty()
     private val graph = "https://graph.facebook.com/${s.graphVersion}"
 
     override suspend fun send(message: Message): Either<String, Unit> {

@@ -9,7 +9,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mmflights.domain.Message
+import mmflights.domain.DailyDecision
 import mmflights.domain.Messages
+import mmflights.domain.dailyDecision
 import mmflights.domain.Offer
 import mmflights.domain.fits
 import mmflights.domain.Snapshot
@@ -111,6 +113,37 @@ suspend fun Env.check(tracker: Tracker, trigger: Trigger): Outcome {
     failures.forEach { log.error("[{}] notification failed: {}", tracker.id, it) }
     log.info("[{}] best={} sent={} ({})", tracker.id, snapshot.best?.price?.show() ?: "none", messages.size, trigger)
     return Outcome(snapshot, messages, failures)
+}
+
+/**
+ * The scheduled daily update, safe to trigger several times a day: it sends at most one update per
+ * day (in the tracker's time zone) and stops once the trip dates have passed. The day is only
+ * marked as done when the search worked and at least one chat received the message, so a later
+ * backup run retries after a failure.
+ *
+ * Returns true when nothing more needs to happen today.
+ */
+suspend fun Env.daily(tracker: Tracker): Boolean {
+    val today = clock().atZone(tracker.notify.zone).toLocalDate()
+    when (dailyDecision(tracker, store.load(tracker.id), today)) {
+        DailyDecision.TRIP_OVER -> { log.info("[{}] trip dates have passed – nothing to track", tracker.id); return true }
+        DailyDecision.ALREADY_SENT_TODAY -> { log.info("[{}] today's update was already sent", tracker.id); return true }
+        DailyDecision.RUN -> {}
+    }
+    val outcome = check(tracker, Trigger.DAILY)
+    // Delivered = at least one channel that reaches people got it (or there is no such channel).
+    val chats = notifiers.filter { it.reachesPeople }.map { it.name }
+    val failed = outcome.deliveryFailures.map { it.substringBefore(":") }.toSet()
+    val delivered = !outcome.snapshot.isBlind && outcome.messages.isNotEmpty() &&
+        (chats.isEmpty() || chats.any { it !in failed })
+    if (!delivered) {
+        log.warn("[{}] daily update not delivered – a later run today will retry", tracker.id)
+        return false
+    }
+    val state = store.load(tracker.id)
+    store.save(tracker.id, state.copy(lastDailyDate = today.toString()))
+        .onLeft { log.error("[{}] could not save state", tracker.id, it) }
+    return true
 }
 
 /**

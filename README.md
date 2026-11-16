@@ -45,6 +45,7 @@ build/install/mmflights/bin/mmflights run              # keep running: polls + d
 | `run` (default) | Long-running daemon. Polls every `pollInterval` and alerts on changes. Sends each tracker's daily summary at its `dailyAt` in its `timezone`. |
 | `check` | Searches once and alerts only if the price changed. Good for cron, CI or Actions. |
 | `summary` | Searches once and sends the full summary. |
+| `daily` | Like `summary`, but at most once per day per tracker, and not after the trip dates. Safe to schedule several times a day. |
 | `validate` | Checks the config and reports **all** problems at once. |
 | `messenger-ids` | Lists people who messaged your Facebook Page, with the IDs to use as Messenger recipients. |
 
@@ -118,10 +119,14 @@ Steps:
 
 ## Running it on a schedule
 
-- **GitHub Actions (no server):** `.github/workflows/flight-tracker.yml` searches once a day
-  at 07:03 UTC (09:03 in Sofia) and posts the daily update, including the change since the
-  previous day. You can also start it manually from the Actions tab (`summary`, `check` or
-  `messenger-ids`). Scheduled workflows only run on the
+- **GitHub Actions (no server):** `.github/workflows/flight-tracker.yml` posts one update a day
+  at about 09:03 Sofia time, including the change since the previous day. GitHub sometimes delays
+  or skips scheduled runs, so the workflow also starts at 09:33, 10:03 and 11:03. The `daily`
+  command sends at most one update per day; later runs stop without searching. If a search fails
+  or no chat receives the message, the day isn't marked as done, so the next backup run retries.
+  Once the trip's departure dates have passed, it stops searching and messaging. You can also
+  start it manually from the Actions tab (`summary` sends now; `daily`, `check` and
+  `messenger-ids` are also available). Scheduled workflows only run on the
   default branch, so merge this branch first. Price history is carried between runs in the
   Actions cache. Commit a `config.yaml` and add your keys as repository secrets.
 - **Docker / any server:**

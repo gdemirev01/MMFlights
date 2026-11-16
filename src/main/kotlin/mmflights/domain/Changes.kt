@@ -47,12 +47,22 @@ fun PriceChange.respectsCeiling(tracker: Tracker): Boolean {
 
 /** Fold a new snapshot into the stored state, keeping a bounded price history. */
 fun TrackerState.record(snapshot: Snapshot, maxHistory: Int = 1000): TrackerState =
-    if (!last.comparableTo(snapshot)) TrackerState(last = snapshot, history = listOf(PricePoint(snapshot.takenAt, snapshot.best?.price)))
+    if (!last.comparableTo(snapshot)) copy(last = snapshot, history = listOf(PricePoint(snapshot.takenAt, snapshot.best?.price)))
     else if (snapshot.isBlind) copy(history = (history + PricePoint(snapshot.takenAt, null)).takeLast(maxHistory))
-    else TrackerState(
+    else copy(
         last = snapshot,
         history = (history + PricePoint(snapshot.takenAt, snapshot.best?.price)).takeLast(maxHistory),
     )
+
+/** Why a daily run did or didn't send anything. */
+enum class DailyDecision { RUN, ALREADY_SENT_TODAY, TRIP_OVER }
+
+/** Pure: should the once-a-day update run now? */
+fun dailyDecision(tracker: Tracker, state: TrackerState, today: java.time.LocalDate): DailyDecision = when {
+    tracker.trip.lastDeparture.isBefore(today) -> DailyDecision.TRIP_OVER
+    state.lastDailyDate == today.toString() -> DailyDecision.ALREADY_SENT_TODAY
+    else -> DailyDecision.RUN
+}
 
 /**
  * False when the search settings that affect price (passengers, cabin, bags, currency) changed
