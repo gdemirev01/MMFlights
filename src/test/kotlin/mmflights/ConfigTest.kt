@@ -128,6 +128,7 @@ class ConfigTest {
     @Test fun `cli parsing`() {
         val cli = parseArgs(listOf("-c", "x.yaml", "check", "-t", "a", "--dry-run"), emptyMap()).getOrNull()!!
         assertEquals("check", cli.command); assertEquals(setOf("a"), cli.trackers); assertTrue(cli.dryRun)
+        assertEquals("daily", parseArgs(listOf("daily"), emptyMap()).getOrNull()!!.command)
         assertTrue(parseArgs(listOf("bogus"), emptyMap()).isLeft())
     }
 }

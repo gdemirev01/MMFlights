@@ -5,11 +5,16 @@ name: flight-tracker
 
 on:
   schedule:
-    - cron: "3 7 * * *"      # every day 07:03 UTC (09:03 Sofia): search + daily update
+    # GitHub sometimes delays or skips scheduled runs, so the daily update is tried several times.
+    # The tracker sends at most one update per day; later runs stop without searching.
+    - cron: "3 7 * * *"      # 09:03 Sofia (winter time)
+    - cron: "33 7 * * *"     # 09:33 backup
+    - cron: "3 8 * * *"      # 10:03 backup
+    - cron: "3 9 * * *"      # 11:03 backup
   workflow_dispatch:
     inputs:
       command:
-        description: "check, summary or messenger-ids"
+        description: "summary (send now), daily (once a day), check or messenger-ids"
         default: summary
 
 concurrency: flight-tracker
@@ -48,8 +53,8 @@ jobs:
           INPUT_COMMAND: ${{ inputs.command }}
         run: |
           if [ "$EVENT" = "workflow_dispatch" ]; then CMD="$INPUT_COMMAND";
-          else CMD=summary; fi
-          case "$CMD" in check|summary|messenger-ids) ;; *) echo "Unknown command: $CMD"; exit 2;; esac
+          else CMD=daily; fi
+          case "$CMD" in check|summary|daily|messenger-ids) ;; *) echo "Unknown command: $CMD"; exit 2;; esac
           build/install/mmflights/bin/mmflights -c config.yaml "$CMD"
 
       - uses: actions/cache/save@v4

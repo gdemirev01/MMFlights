@@ -37,6 +37,12 @@ data class DateRange(val from: LocalDate, val to: LocalDate) {
 data class StayRange(val minNights: Int, val maxNights: Int)
 
 sealed interface Trip {
+    /** The last date on which the trip could still start; after it, there is nothing to track. */
+    val lastDeparture: LocalDate get() = when (this) {
+        is OneWay -> departure.to
+        is Return -> departure.to
+    }
+
     data class OneWay(val departure: DateRange) : Trip
 
     /** Return trip: return dates come from [returnWindow], [stay], or both (intersection). */
@@ -193,6 +199,8 @@ data class PricePoint(@Serializable(InstantSerializer::class) val at: Instant, v
 data class TrackerState(
     val last: Snapshot? = null,
     val history: List<PricePoint> = emptyList(),
+    /** Local date (tracker time zone) of the last daily update that was delivered. */
+    val lastDailyDate: String? = null,
 ) {
     val lowestEver: PricePoint?
         get() = history.filter { it.price != null }.minByOrNull { it.price!!.amount }

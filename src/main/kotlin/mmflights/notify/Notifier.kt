@@ -25,6 +25,9 @@ import mmflights.domain.TelegramHtml
 /** Somewhere to send a text message (a group chat, a channel, the terminal…). */
 interface Notifier {
     val name: String
+
+    /** Whether a successful send means a person actually got the message (not just a log line). */
+    val reachesPeople: Boolean get() = true
     suspend fun send(message: Message): Either<String, Unit>
 }
 
@@ -44,6 +47,7 @@ suspend fun List<Notifier>.broadcast(message: Message): List<String> =
 
 object ConsoleNotifier : Notifier {
     override val name = "console"
+    override val reachesPeople = false
     override suspend fun send(message: Message): Either<String, Unit> = Either.Right(println("\n${message.plain}\n"))
 }
 
